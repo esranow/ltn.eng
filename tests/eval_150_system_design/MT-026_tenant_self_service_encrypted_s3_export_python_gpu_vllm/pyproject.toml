@@ -1,0 +1,4 @@
+[project]
+name = "tenant-s3-export"
+version = "0.1.0"
+dependencies = ["boto3", "cryptography"]

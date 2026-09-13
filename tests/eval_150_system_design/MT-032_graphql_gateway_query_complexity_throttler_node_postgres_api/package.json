@@ -1,0 +1,1 @@
+{"name": "gql-throttler", "dependencies": {"graphql": "^16.8.1", "graphql-cost-analysis": "^1.0.3"}}

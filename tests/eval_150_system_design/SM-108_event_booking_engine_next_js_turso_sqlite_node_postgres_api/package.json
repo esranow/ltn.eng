@@ -1,0 +1,1 @@
+{"name": "booking-engine", "dependencies": {"next": "14.1.0", "@libsql/client": "^0.5.3"}}

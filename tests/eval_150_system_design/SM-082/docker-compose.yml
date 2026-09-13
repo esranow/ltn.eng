@@ -1,0 +1,4 @@
+services:
+  pr_app:
+    image: node:20-alpine
+    ports: ['3000:3000']

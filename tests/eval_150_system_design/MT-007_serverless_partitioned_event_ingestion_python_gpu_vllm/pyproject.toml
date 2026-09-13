@@ -1,0 +1,4 @@
+[project]
+name = "event-ingest"
+version = "0.1.0"
+dependencies = ["boto3>=1.34"]

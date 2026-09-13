@@ -1,0 +1,1 @@
+{"name": "podcast-rss", "dependencies": {"rss": "^1.2.2", "express": "^4.18.0"}}

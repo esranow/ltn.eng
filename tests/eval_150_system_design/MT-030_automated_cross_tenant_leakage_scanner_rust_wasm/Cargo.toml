@@ -1,0 +1,6 @@
+[package]
+name = "leakage-probe"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+reqwest = "0.11"

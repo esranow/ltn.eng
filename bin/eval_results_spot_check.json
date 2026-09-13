@@ -1,0 +1,919 @@
+{
+  "timestamp": "2026-09-12T14:32:48Z",
+  "total_evaluated": 9,
+  "deployed_records_count": 9,
+  "ministack_200_ok_count": 9,
+  "invariant_satisfied": true,
+  "results": [
+    {
+      "id": "MT-001",
+      "name": "FinTech Isolated DB Multi-Tenancy",
+      "category": "Multi-Tenant Cloud",
+      "tier": "BALANCED",
+      "classification": {
+        "workload_kind": "StatefulStore",
+        "description": "Stateful In-Memory/Persistent Storage Workload [Scale: 1 nodes, 4 cores, 8192 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 8192,
+        "recommended_cpu_cores": 4,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "db-node",
+              "role": "primary-store",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single container stateful store with local volume mount for Stateful In-Memory/Persistent Storage Workload [Scale: 1 nodes, 4 cores, 8192 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS_RDS",
+          "nodes": [
+            {
+              "name": "rds-postgres-primary",
+              "role": "managed-db-primary",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "rds-postgres-replica",
+              "role": "read-replica",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5433:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 124.0,
+          "description": "Managed Multi-AZ RDS Postgres cluster with Read Replica for Stateful In-Memory/Persistent Storage Workload [Scale: 1 nodes, 4 cores, 8192 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_SPANNER",
+          "nodes": [
+            {
+              "name": "spanner-node-leader",
+              "role": "distributed-consensus",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9010:9010"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "spanner-node-witness",
+              "role": "consensus-witness",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9020:9010"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 279.0,
+          "description": "Global synchronous replicated multi-region Spanner cluster for Stateful In-Memory/Persistent Storage Workload [Scale: 1 nodes, 4 cores, 8192 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'MT-001_fintech_isolated_db_multi_tenancy' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\MT-001_fintech_isolated_db_multi_tenancy",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "BALANCED",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.390065] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "MT-002",
+      "name": "Healthcare HIPAA Isolated VPC Compute",
+      "category": "Multi-Tenant Cloud",
+      "tier": "HIGH_PERFORMANCE",
+      "classification": {
+        "workload_kind": "StatefulStore",
+        "description": "Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 16384,
+        "recommended_cpu_cores": 16,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "db-node",
+              "role": "primary-store",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single container stateful store with local volume mount for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS_RDS",
+          "nodes": [
+            {
+              "name": "rds-postgres-primary",
+              "role": "managed-db-primary",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "rds-postgres-replica",
+              "role": "read-replica",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5433:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 440.0,
+          "description": "Managed Multi-AZ RDS Postgres cluster with Read Replica for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_SPANNER",
+          "nodes": [
+            {
+              "name": "spanner-node-leader",
+              "role": "distributed-consensus",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9010:9010"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "spanner-node-witness",
+              "role": "consensus-witness",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9020:9010"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 864.0,
+          "description": "Global synchronous replicated multi-region Spanner cluster for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'MT-002_healthcare_hipaa_isolated_vpc_compute' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\MT-002_healthcare_hipaa_isolated_vpc_compute",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.417560] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SC-039",
+      "name": "Ultra-Low-Latency Order Matching Engine",
+      "category": "Singular Cloud",
+      "tier": "HIGH_PERFORMANCE",
+      "classification": {
+        "workload_kind": "GenericContainer",
+        "description": "Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 65536,
+        "recommended_cpu_cores": 32,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "primary",
+              "image": "alpine:latest",
+              "ports": [
+                "8080:8080"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single-container cost-optimized setup for Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "app-server",
+              "image": "app:latest",
+              "ports": [
+                "80:8080"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-node",
+              "role": "database",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 992.0,
+          "description": "High-availability 2-tier setup for Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_GPU_CLUSTER",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 1885.0,
+          "description": "Distributed GPU-accelerated cluster for Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SC-039_ultra_low_latency_order_matching_engine' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\SC-039_ultra_low_latency_order_matching_engine",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.435774] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SC-040",
+      "name": "HLS Video Streaming Transcoding Pipeline",
+      "category": "Singular Cloud",
+      "tier": "BALANCED",
+      "classification": {
+        "workload_kind": "StatefulStore",
+        "description": "Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 16384,
+        "recommended_cpu_cores": 16,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "db-node",
+              "role": "primary-store",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single container stateful store with local volume mount for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS_RDS",
+          "nodes": [
+            {
+              "name": "rds-postgres-primary",
+              "role": "managed-db-primary",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "rds-postgres-replica",
+              "role": "read-replica",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5433:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 440.0,
+          "description": "Managed Multi-AZ RDS Postgres cluster with Read Replica for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_SPANNER",
+          "nodes": [
+            {
+              "name": "spanner-node-leader",
+              "role": "distributed-consensus",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9010:9010"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "spanner-node-witness",
+              "role": "consensus-witness",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9020:9010"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 864.0,
+          "description": "Global synchronous replicated multi-region Spanner cluster for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SC-040_hls_video_streaming_transcoding_pipeline' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\SC-040_hls_video_streaming_transcoding_pipeline",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "BALANCED",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.452594] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SM-077",
+      "name": "Bootstrapped SaaS MVP (Node + Postgres + S3)",
+      "category": "Small-Scale Cloud",
+      "tier": "BALANCED",
+      "classification": {
+        "workload_kind": "NodePostgresApi",
+        "description": "Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 2048,
+        "recommended_cpu_cores": 2,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "primary",
+              "image": "alpine:latest",
+              "ports": [
+                "8080:8080"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single-container cost-optimized setup for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "app-server",
+              "image": "app:latest",
+              "ports": [
+                "80:8080"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-node",
+              "role": "database",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 55.0,
+          "description": "High-availability 2-tier setup for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "AWS_ECS_CLUSTER",
+          "nodes": [
+            {
+              "name": "api-cluster",
+              "role": "api-server-pool",
+              "image": "node:20-alpine",
+              "ports": [
+                "3000:3000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-cluster",
+              "role": "aurora-postgres",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "alb-gateway",
+              "role": "application-load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443",
+                "80:80"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 152.0,
+          "description": "Production-grade auto-scaling ECS cluster with Aurora Serverless PostgreSQL and ALB for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SM-077_bootstrapped_saas_mvp_node_postgres_s3' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\SM-077_bootstrapped_saas_mvp_node_postgres_s3",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "BALANCED",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.475104] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SM-078",
+      "name": "Jamstack Static Portfolio with Serverless Form",
+      "category": "Small-Scale Cloud",
+      "tier": "CHEAPEST",
+      "classification": {
+        "workload_kind": "StaticWeb",
+        "description": "React/Vite Static Web Frontend [Scale: 1 nodes, 1 cores, 512 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 512,
+        "recommended_cpu_cores": 1,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "static-app",
+              "role": "web-server",
+              "image": "nginx:alpine",
+              "ports": [
+                "80:80"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Local containerized static web server for React/Vite Static Web Frontend [Scale: 1 nodes, 1 cores, 512 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "CLOUDFLARE_PAGES",
+          "nodes": [
+            {
+              "name": "cdn-edge-distribution",
+              "role": "edge-cdn",
+              "image": "cloudflare/pages-runtime:latest",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 26.0,
+          "description": "Global CDN edge static hosting with automated SSL for React/Vite Static Web Frontend [Scale: 1 nodes, 1 cores, 512 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "AWS_CLOUDFRONT_S3",
+          "nodes": [
+            {
+              "name": "s3-origin",
+              "role": "origin-storage",
+              "image": "amazon/aws-cli:latest",
+              "ports": [],
+              "environment": {}
+            },
+            {
+              "name": "cloudfront-edge",
+              "role": "edge-cache",
+              "image": "aws/cloudfront-agent:latest",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 98.0,
+          "description": "Multi-region S3 bucket origin backed by CloudFront edge POPs for React/Vite Static Web Frontend [Scale: 1 nodes, 1 cores, 512 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SM-078_jamstack_static_portfolio_with_serverless_form' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\SM-078_jamstack_static_portfolio_with_serverless_form",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "CHEAPEST",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.494612] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SM-079",
+      "name": "Python FastAPI Webhook Receiver",
+      "category": "Small-Scale Cloud",
+      "tier": "BALANCED",
+      "classification": {
+        "workload_kind": "PythonVllmGpu",
+        "description": "Python High-Performance LLM/GPU Inference Workload [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 2048,
+        "recommended_cpu_cores": 2,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single local GPU container setup for Python High-Performance LLM/GPU Inference Workload [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443",
+                "80:80"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 55.0,
+          "description": "Dedicated AWS EC2 GPU instance with Nginx ingress for Python High-Performance LLM/GPU Inference Workload [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_GPU_CLUSTER",
+          "nodes": [
+            {
+              "name": "inference-node-01",
+              "role": "gpu-worker-primary",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "inference-node-02",
+              "role": "gpu-worker-secondary",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8001:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 152.0,
+          "description": "Distributed GCP multi-GPU cluster with tensor parallelism for Python High-Performance LLM/GPU Inference Workload [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SM-079_python_fastapi_webhook_receiver' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\SM-079_python_fastapi_webhook_receiver",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "BALANCED",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.513955] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "DC-114",
+      "name": "64-Node Bare-Metal H100 InfiniBand Cluster",
+      "category": "Data Centre On-Premise",
+      "tier": "HIGH_PERFORMANCE",
+      "classification": {
+        "workload_kind": "PythonVllmGpu",
+        "description": "Python High-Performance LLM/GPU Inference Workload [Scale: 64 nodes, 2048 cores, 4194304 MB RAM, 512 GPUs]",
+        "recommended_ram_mb": 4194304,
+        "recommended_cpu_cores": 2048,
+        "recommended_vram_mb": 40960000,
+        "recommended_gpu_count": 512
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single local GPU container setup for Python High-Performance LLM/GPU Inference Workload [Scale: 64 nodes, 2048 cores, 4194304 MB RAM, 512 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443",
+                "80:80"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 885760.0,
+          "description": "Dedicated AWS EC2 GPU instance with Nginx ingress for Python High-Performance LLM/GPU Inference Workload [Scale: 64 nodes, 2048 cores, 4194304 MB RAM, 512 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_GPU_CLUSTER",
+          "nodes": [
+            {
+              "name": "inference-node-01",
+              "role": "gpu-worker-primary",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "inference-node-02",
+              "role": "gpu-worker-secondary",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8001:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 1638706.0,
+          "description": "Distributed GCP multi-GPU cluster with tensor parallelism for Python High-Performance LLM/GPU Inference Workload [Scale: 64 nodes, 2048 cores, 4194304 MB RAM, 512 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'DC-114_64_node_bare_metal_h100_infiniband_cluster' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\DC-114_64_node_bare_metal_h100_infiniband_cluster",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.531453] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "DC-115",
+      "name": "NUMA-Aware Core Pinning & 1GB HugePages Pool",
+      "category": "Data Centre On-Premise",
+      "tier": "HIGH_PERFORMANCE",
+      "classification": {
+        "workload_kind": "GenericContainer",
+        "description": "Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 65536,
+        "recommended_cpu_cores": 32,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "primary",
+              "image": "alpine:latest",
+              "ports": [
+                "8080:8080"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single-container cost-optimized setup for Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "app-server",
+              "image": "app:latest",
+              "ports": [
+                "80:8080"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-node",
+              "role": "database",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 992.0,
+          "description": "High-availability 2-tier setup for Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_GPU_CLUSTER",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 1885.0,
+          "description": "Distributed GPU-accelerated cluster for Generic Containerized Application [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'DC-115_numa_aware_core_pinning_1gb_hugepages_pool' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260912200248",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_spot_check\\DC-115_numa_aware_core_pinning_1gb_hugepages_pool",
+        "provider": "AWS",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "raw_ministack_log_lines": [
+        "[2026-09-12T20:02:48.551405] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"name": "enterprise-idp", "dependencies": {"@simplewebauthn/server": "^9.0.0", "oidc-provider": "^8.4.0"}}

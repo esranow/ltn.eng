@@ -1,0 +1,6 @@
+[package]
+name = "quantum-hsm"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+pqcrypto = "0.17"

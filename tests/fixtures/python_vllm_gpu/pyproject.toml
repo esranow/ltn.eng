@@ -1,0 +1,7 @@
+[project]
+name = "python-vllm-gpu"
+version = "0.1.0"
+dependencies = [
+    "vllm>=0.4.0",
+    "torch>=2.2.0"
+]

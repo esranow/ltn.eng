@@ -1,0 +1,1 @@
+{"name": "ses-forwarder", "dependencies": {"aws-sdk": "^2.1565.0"}}

@@ -1,0 +1,13 @@
+[package]
+name = "ltn-architect"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+tracing.workspace = true

@@ -1,0 +1,4 @@
+[project]
+name = "token-meter"
+version = "0.1.0"
+dependencies = ["tiktoken>=0.6", "fastapi"]

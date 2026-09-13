@@ -1,0 +1,6 @@
+services:
+  cell_router:
+    image: envoy
+  cell_compute:
+    image: app
+    mem_limit: 8g

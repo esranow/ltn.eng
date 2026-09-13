@@ -1,0 +1,5 @@
+services:
+  cas_node1:
+    image: cassandra:5.0
+  cas_node2:
+    image: cassandra:5.0

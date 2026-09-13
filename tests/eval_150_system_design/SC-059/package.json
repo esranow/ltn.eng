@@ -1,0 +1,1 @@
+{"name": "supply-chain", "dependencies": {"pg": "^8.11.0", "eventstore": "^1.15.0"}}

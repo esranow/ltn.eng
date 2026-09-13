@@ -1,0 +1,1 @@
+{"name": "geo-search", "dependencies": {"pg": "^8.11.0", "knex": "^3.1.0"}}

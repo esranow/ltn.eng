@@ -1,0 +1,16 @@
+{
+  "project_id": "DC-114",
+  "project_path": ".",
+  "workload_type": "PYTHON_VLLM_GPU",
+  "detected_manifests": ["pyproject.toml"],
+  "dependencies": ["torch", "deepspeed", "vllm"],
+  "resource_demands": {
+    "node_count": 32,
+    "gpu_count": 256,
+    "gpu_model": "H100-SXM5-80GB",
+    "cpu_cores": 1024,
+    "memory_mb": 2097152,
+    "vram_mb": 20480000,
+    "storage_gb": 10000
+  }
+}

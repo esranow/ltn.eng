@@ -1,0 +1,6 @@
+[package]
+name = "order-matcher"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+crossbeam = "0.8"

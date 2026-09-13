@@ -1,0 +1,1 @@
+{"name": "mfe-gateway", "dependencies": {"express": "^4.18.0", "node-fetch": "^3.3.2"}}

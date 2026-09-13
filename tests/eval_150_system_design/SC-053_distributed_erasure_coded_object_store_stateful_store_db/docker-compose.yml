@@ -1,0 +1,5 @@
+services:
+  minio_node1:
+    image: minio/minio
+  minio_node2:
+    image: minio/minio

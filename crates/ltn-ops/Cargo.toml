@@ -1,0 +1,16 @@
+[package]
+name = "ltn-ops"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ltn-core.workspace = true
+ltn-architect.workspace = true
+ltn-providers.workspace = true
+sysinfo.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true

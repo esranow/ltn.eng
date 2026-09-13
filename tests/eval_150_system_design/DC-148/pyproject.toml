@@ -1,0 +1,4 @@
+[project]
+name = "triton-farm"
+version = "0.1.0"
+dependencies = ["tritonclient", "torch", "vllm"]

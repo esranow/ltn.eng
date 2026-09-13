@@ -1,0 +1,6 @@
+services:
+  hipaa_api:
+    image: app
+    mem_limit: 8g
+  hipaa_db:
+    image: postgres:16

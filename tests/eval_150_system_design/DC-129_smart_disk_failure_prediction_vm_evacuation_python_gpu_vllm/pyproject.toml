@@ -1,0 +1,4 @@
+[project]
+name = "smart-predict"
+version = "0.1.0"
+dependencies = ["scikit-learn", "pandas"]

@@ -1,0 +1,4 @@
+services:
+  suricata:
+    image: jasonish/suricata:latest
+    cap_add: ['NET_ADMIN']

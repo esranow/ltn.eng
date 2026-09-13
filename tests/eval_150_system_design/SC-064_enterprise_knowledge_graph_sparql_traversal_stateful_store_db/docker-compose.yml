@@ -1,0 +1,4 @@
+services:
+  neo4j:
+    image: neo4j:5.17.0
+    mem_limit: 8g

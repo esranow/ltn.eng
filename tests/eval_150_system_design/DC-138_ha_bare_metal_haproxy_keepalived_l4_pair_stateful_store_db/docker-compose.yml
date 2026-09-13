@@ -1,0 +1,5 @@
+services:
+  haproxy:
+    image: haproxy:alpine
+  keepalived:
+    image: keepalived:latest

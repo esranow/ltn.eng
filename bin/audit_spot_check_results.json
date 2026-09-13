@@ -1,0 +1,822 @@
+{
+  "timestamp": "2026-09-12T18:49:56Z",
+  "total_evaluated": 8,
+  "initial_ministack_200_count": 244,
+  "final_ministack_200_count": 252,
+  "delta_ministack_200_lines": 8,
+  "deployed_through_ministack_count": 8,
+  "runtime_invariant_satisfied": true,
+  "spot_check_records": [
+    {
+      "id": "MT-002",
+      "name": "Healthcare HIPAA Isolated VPC Compute",
+      "category": "Multi-Tenant Cloud",
+      "tier": "HIGH_PERFORMANCE",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\MT-002_healthcare_hipaa_isolated_vpc_compute_stateful_store_db",
+      "classification": {
+        "workload_kind": "StatefulStore",
+        "description": "Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 16384,
+        "recommended_cpu_cores": 16,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "db-node",
+              "role": "primary-store",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single container stateful store with local volume mount for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS_RDS",
+          "nodes": [
+            {
+              "name": "rds-postgres-primary",
+              "role": "managed-db-primary",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "rds-postgres-replica",
+              "role": "read-replica",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5433:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 440.0,
+          "description": "Managed Multi-AZ RDS Postgres cluster with Read Replica for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_SPANNER",
+          "nodes": [
+            {
+              "name": "spanner-node-leader",
+              "role": "distributed-consensus",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9010:9010"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "spanner-node-witness",
+              "role": "consensus-witness",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9020:9010"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 752.0,
+          "description": "Global synchronous replicated multi-region Spanner cluster for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 16 cores, 16384 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: GKE Workload 'MT-002_healthcare_hipaa_isolated_vpc_compute_stateful_store_db' deployed via http://127.0.0.1:4566",
+        "cluster_id": "gke-MT-002_healthcare_hipaa_isolated_vpc_compute_stateful_store_db",
+        "endpoint": "http://127.0.0.1:4566",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\MT-002_healthcare_hipaa_isolated_vpc_compute_stateful_store_db",
+        "provider": "GCP",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled GoogleKubernetesEngineV1.CreateCluster\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001949\"}}",
+        "region": "us-central1",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:49.225069] POST /v1/projects/ltn-prod/zones/us-central1-a/clusters/MT-002_healthcare_hipaa_isolated_vpc_compute_stateful_store_db - Action: GoogleKubernetesEngineV1.CreateCluster - Status: 200"
+      ]
+    },
+    {
+      "id": "MT-004",
+      "name": "Multi-Tenant KMS Envelope Encryption",
+      "category": "Multi-Tenant Cloud",
+      "tier": "BALANCED",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\MT-004_multi_tenant_kms_envelope_encryption_rust_wasm",
+      "classification": {
+        "workload_kind": "RustWasm",
+        "description": "Rust WebAssembly Edge Workload [Scale: 1 nodes, 1 cores, 256 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 256,
+        "recommended_cpu_cores": 1,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_WASMER",
+          "nodes": [
+            {
+              "name": "wasm-node",
+              "role": "edge-worker",
+              "image": "wasmer/runtime:latest",
+              "ports": [
+                "8080:8080"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Standalone Wasmer local runtime for Rust WebAssembly Edge Workload [Scale: 1 nodes, 1 cores, 256 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "FASTLY_COMPUTE",
+          "nodes": [
+            {
+              "name": "fastly-edge-wasm",
+              "role": "edge-compute",
+              "image": "fastly/viceroy:latest",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 27.0,
+          "description": "Serverless Wasm edge compute on Fastly POPs for Rust WebAssembly Edge Workload [Scale: 1 nodes, 1 cores, 256 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "CLOUDFLARE_WORKERS",
+          "nodes": [
+            {
+              "name": "cf-wasm-core",
+              "role": "edge-compute",
+              "image": "cloudflare/workerd:latest",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "kv-storage-node",
+              "role": "edge-storage",
+              "image": "cloudflare/workers-kv:latest",
+              "ports": [],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 73.0,
+          "description": "Enterprise global WebAssembly edge mesh with distributed Workers KV for Rust WebAssembly Edge Workload [Scale: 1 nodes, 1 cores, 256 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'MT-004_multi_tenant_kms_envelope_encryption_rust_wasm' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260913001950",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\MT-004_multi_tenant_kms_envelope_encryption_rust_wasm",
+        "provider": "AWS",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled AmazonEC2ContainerServiceV20141113.RunTask\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001950\"}}",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "BALANCED",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:50.306145] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SC-039",
+      "name": "Ultra-Low-Latency Order Matching Engine",
+      "category": "Singular Cloud",
+      "tier": "HIGH_PERFORMANCE",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SC-039_ultra_low_latency_order_matching_engine_rust_wasm",
+      "classification": {
+        "workload_kind": "RustWasm",
+        "description": "Rust WebAssembly Edge Workload [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 65536,
+        "recommended_cpu_cores": 32,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_WASMER",
+          "nodes": [
+            {
+              "name": "wasm-node",
+              "role": "edge-worker",
+              "image": "wasmer/runtime:latest",
+              "ports": [
+                "8080:8080"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Standalone Wasmer local runtime for Rust WebAssembly Edge Workload [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "FASTLY_COMPUTE",
+          "nodes": [
+            {
+              "name": "fastly-edge-wasm",
+              "role": "edge-compute",
+              "image": "fastly/viceroy:latest",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 514.0,
+          "description": "Serverless Wasm edge compute on Fastly POPs for Rust WebAssembly Edge Workload [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "CLOUDFLARE_WORKERS",
+          "nodes": [
+            {
+              "name": "cf-wasm-core",
+              "role": "edge-compute",
+              "image": "cloudflare/workerd:latest",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "kv-storage-node",
+              "role": "edge-storage",
+              "image": "cloudflare/workers-kv:latest",
+              "ports": [],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 823.0,
+          "description": "Enterprise global WebAssembly edge mesh with distributed Workers KV for Rust WebAssembly Edge Workload [Scale: 1 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SC-039_ultra_low_latency_order_matching_engine_rust_wasm' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260913001951",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SC-039_ultra_low_latency_order_matching_engine_rust_wasm",
+        "provider": "AWS",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled AmazonEC2ContainerServiceV20141113.RunTask\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001951\"}}",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:51.385974] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SC-041",
+      "name": "1M Events/Sec IoT Stream Ingestion Mesh",
+      "category": "Singular Cloud",
+      "tier": "HIGH_PERFORMANCE",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SC-041_1m_events_sec_iot_stream_ingestion_mesh_go_worker",
+      "classification": {
+        "workload_kind": "GoWorker",
+        "description": "Go Distributed Background Worker [Scale: 1 nodes, 16 cores, 4096 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 4096,
+        "recommended_cpu_cores": 16,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "go-worker",
+              "role": "worker",
+              "image": "alpine:latest",
+              "ports": [],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single Go background worker container for Go Distributed Background Worker [Scale: 1 nodes, 16 cores, 4096 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "DIGITAL_OCEAN",
+          "nodes": [
+            {
+              "name": "go-worker",
+              "role": "worker",
+              "image": "go-worker:latest",
+              "ports": [],
+              "environment": {}
+            },
+            {
+              "name": "redis-broker",
+              "role": "queue",
+              "image": "redis:7-alpine",
+              "ports": [
+                "6379:6379"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 298.0,
+          "description": "Managed Redis message broker with Go consumer workers for Go Distributed Background Worker [Scale: 1 nodes, 16 cores, 4096 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "AWS_ECS_FARGATE",
+          "nodes": [
+            {
+              "name": "worker-pool",
+              "role": "auto-scaling-workers",
+              "image": "go-worker:latest",
+              "ports": [],
+              "environment": {}
+            },
+            {
+              "name": "sqs-dlq-system",
+              "role": "managed-queue",
+              "image": "amazon/sqs-local:latest",
+              "ports": [],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 771.0,
+          "description": "Auto-scaling Fargate Go worker cluster backed by SQS for Go Distributed Background Worker [Scale: 1 nodes, 16 cores, 4096 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SC-041_1m_events_sec_iot_stream_ingestion_mesh_go_worker' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260913001952",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SC-041_1m_events_sec_iot_stream_ingestion_mesh_go_worker",
+        "provider": "AWS",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled AmazonEC2ContainerServiceV20141113.RunTask\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001952\"}}",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:52.472515] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SM-077",
+      "name": "Bootstrapped SaaS MVP (Node + Postgres + S3)",
+      "category": "Small-Scale Cloud",
+      "tier": "BALANCED",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SM-077_bootstrapped_saas_mvp_node_postgres_s3_node_postgres_api",
+      "classification": {
+        "workload_kind": "NodePostgresApi",
+        "description": "Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 2048,
+        "recommended_cpu_cores": 2,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "primary",
+              "image": "alpine:latest",
+              "ports": [
+                "8080:8080"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single-container cost-optimized setup for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "app-server",
+              "image": "app:latest",
+              "ports": [
+                "80:8080"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-node",
+              "role": "database",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 55.0,
+          "description": "High-availability 2-tier setup for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "AZURE_AKS",
+          "nodes": [
+            {
+              "name": "api-cluster",
+              "role": "api-server-pool",
+              "image": "node:20-alpine",
+              "ports": [
+                "3000:3000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-cluster",
+              "role": "azure-postgres-flexible",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "azure-app-gateway",
+              "role": "application-gateway-waf",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443",
+                "80:80"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 146.0,
+          "description": "Enterprise Azure Kubernetes Service (AKS) cluster with PostgreSQL Flexible Server and Azure Application Gateway WAF for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: ECS Task 'SM-077_bootstrapped_saas_mvp_node_postgres_s3_node_postgres_api' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "instance_id": "i-req20260913001953",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SM-077_bootstrapped_saas_mvp_node_postgres_s3_node_postgres_api",
+        "provider": "AWS",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled AmazonEC2ContainerServiceV20141113.RunTask\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001953\"}}",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "BALANCED",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:53.557698] POST /ecs - Action: AmazonEC2ContainerServiceV20141113.RunTask - Status: 200"
+      ]
+    },
+    {
+      "id": "SM-080",
+      "name": "Single-Node Internal Admin Tool with SQLite WAL",
+      "category": "Small-Scale Cloud",
+      "tier": "HIGH_PERFORMANCE",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SM-080_single_node_internal_admin_tool_with_sqlite_wal_node_postgres_api",
+      "classification": {
+        "workload_kind": "NodePostgresApi",
+        "description": "Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 2048,
+        "recommended_cpu_cores": 2,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "primary",
+              "image": "alpine:latest",
+              "ports": [
+                "8080:8080"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single-container cost-optimized setup for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "app-node",
+              "role": "app-server",
+              "image": "app:latest",
+              "ports": [
+                "80:8080"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-node",
+              "role": "database",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 55.0,
+          "description": "High-availability 2-tier setup for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "AZURE_AKS",
+          "nodes": [
+            {
+              "name": "api-cluster",
+              "role": "api-server-pool",
+              "image": "node:20-alpine",
+              "ports": [
+                "3000:3000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "db-cluster",
+              "role": "azure-postgres-flexible",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "azure-app-gateway",
+              "role": "application-gateway-waf",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443",
+                "80:80"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 146.0,
+          "description": "Enterprise Azure Kubernetes Service (AKS) cluster with PostgreSQL Flexible Server and Azure Application Gateway WAF for Node.js REST API with PostgreSQL Database [Scale: 1 nodes, 2 cores, 2048 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: AKS Cluster 'SM-080_single_node_internal_admin_tool_with_sqlite_wal_node_postgres_api' deployed via http://127.0.0.1:4566",
+        "endpoint": "http://127.0.0.1:4566",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\SM-080_single_node_internal_admin_tool_with_sqlite_wal_node_postgres_api",
+        "provider": "AZURE",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled AzureResourceManager.CreateOrUpdateCluster\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001954\"}}",
+        "resource_group": "rg-ltn-prod",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:54.635439] POST /subscriptions/sub-1/resourceGroups/rg-ltn/providers/Microsoft.ContainerService/managedClusters/SM-080_single_node_internal_admin_tool_with_sqlite_wal_node_postgres_api - Action: AzureResourceManager.CreateOrUpdateCluster - Status: 200"
+      ]
+    },
+    {
+      "id": "DC-114",
+      "name": "64-Node Bare-Metal H100 InfiniBand Cluster",
+      "category": "Data Centre On-Premise",
+      "tier": "HIGH_PERFORMANCE",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\DC-114_64_node_bare_metal_h100_infiniband_cluster_python_gpu_vllm",
+      "classification": {
+        "workload_kind": "PythonVllmGpu",
+        "description": "Python High-Performance LLM/GPU Inference Workload [Scale: 32 nodes, 1024 cores, 2097152 MB RAM, 256 GPUs]",
+        "recommended_ram_mb": 2097152,
+        "recommended_cpu_cores": 1024,
+        "recommended_vram_mb": 20480000,
+        "recommended_gpu_count": 256
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single local GPU container setup for Python High-Performance LLM/GPU Inference Workload [Scale: 32 nodes, 1024 cores, 2097152 MB RAM, 256 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS",
+          "nodes": [
+            {
+              "name": "inference-node",
+              "role": "gpu-worker",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443",
+                "80:80"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 442880.0,
+          "description": "Dedicated AWS EC2 GPU instance with Nginx ingress for Python High-Performance LLM/GPU Inference Workload [Scale: 32 nodes, 1024 cores, 2097152 MB RAM, 256 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_GPU_CLUSTER",
+          "nodes": [
+            {
+              "name": "inference-node-01",
+              "role": "gpu-worker-primary",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8000:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "inference-node-02",
+              "role": "gpu-worker-secondary",
+              "image": "vllm/vllm-openai:latest",
+              "ports": [
+                "8001:8000"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "gateway-node",
+              "role": "load-balancer",
+              "image": "nginx:alpine",
+              "ports": [
+                "443:443"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 714570.0,
+          "description": "Distributed GCP multi-GPU cluster with tensor parallelism for Python High-Performance LLM/GPU Inference Workload [Scale: 32 nodes, 1024 cores, 2097152 MB RAM, 256 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: GKE Workload 'DC-114_64_node_bare_metal_h100_infiniband_cluster_python_gpu_vllm' deployed via http://127.0.0.1:4566",
+        "cluster_id": "gke-DC-114_64_node_bare_metal_h100_infiniband_cluster_python_gpu_vllm",
+        "endpoint": "http://127.0.0.1:4566",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\DC-114_64_node_bare_metal_h100_infiniband_cluster_python_gpu_vllm",
+        "provider": "GCP",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled GoogleKubernetesEngineV1.CreateCluster\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001955\"}}",
+        "region": "us-central1",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:55.712151] POST /v1/projects/ltn-prod/zones/us-central1-a/clusters/DC-114_64_node_bare_metal_h100_infiniband_cluster_python_gpu_vllm - Action: GoogleKubernetesEngineV1.CreateCluster - Status: 200"
+      ]
+    },
+    {
+      "id": "DC-116",
+      "name": "Bare-Metal Ceph 2PB NVMe-oF Storage Cluster",
+      "category": "Data Centre On-Premise",
+      "tier": "HIGH_PERFORMANCE",
+      "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\DC-116_bare_metal_ceph_2pb_nvme_of_storage_cluster_stateful_store_db",
+      "classification": {
+        "workload_kind": "StatefulStore",
+        "description": "Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 32 cores, 65536 MB RAM, 0 GPUs]",
+        "recommended_ram_mb": 65536,
+        "recommended_cpu_cores": 32,
+        "recommended_vram_mb": 0,
+        "recommended_gpu_count": 0
+      },
+      "plans": [
+        {
+          "tier": "Cheapest",
+          "provider": "LOCAL_DOCKER",
+          "nodes": [
+            {
+              "name": "db-node",
+              "role": "primary-store",
+              "image": "postgres:16-alpine",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 0.0,
+          "description": "Single container stateful store with local volume mount for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "Balanced",
+          "provider": "AWS_RDS",
+          "nodes": [
+            {
+              "name": "rds-postgres-primary",
+              "role": "managed-db-primary",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5432:5432"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "rds-postgres-replica",
+              "role": "read-replica",
+              "image": "aws/rds-postgres:16",
+              "ports": [
+                "5433:5432"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 992.0,
+          "description": "Managed Multi-AZ RDS Postgres cluster with Read Replica for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        },
+        {
+          "tier": "HighPerformance",
+          "provider": "GCP_SPANNER",
+          "nodes": [
+            {
+              "name": "spanner-node-leader",
+              "role": "distributed-consensus",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9010:9010"
+              ],
+              "environment": {}
+            },
+            {
+              "name": "spanner-node-witness",
+              "role": "consensus-witness",
+              "image": "gcp/spanner-emulator:latest",
+              "ports": [
+                "9020:9010"
+              ],
+              "environment": {}
+            }
+          ],
+          "estimated_monthly_cost_usd": 1642.0,
+          "description": "Global synchronous replicated multi-region Spanner cluster for Stateful In-Memory/Persistent Storage Workload [Scale: 2 nodes, 32 cores, 65536 MB RAM, 0 GPUs]"
+        }
+      ],
+      "deployment": {
+        "actuator_status": "HTTP 200 OK: GKE Workload 'DC-116_bare_metal_ceph_2pb_nvme_of_storage_cluster_stateful_store_db' deployed via http://127.0.0.1:4566",
+        "cluster_id": "gke-DC-116_bare_metal_ceph_2pb_nvme_of_storage_cluster_stateful_store_db",
+        "endpoint": "http://127.0.0.1:4566",
+        "path": "D:\\ltn-eng-workspace\\tests\\eval_150_system_design\\DC-116_bare_metal_ceph_2pb_nvme_of_storage_cluster_stateful_store_db",
+        "provider": "GCP",
+        "raw_response_body": "{\"status\": \"SUCCESS\", \"message\": \"MiniStack handled GoogleKubernetesEngineV1.CreateCluster\", \"details\": {\"service\": \"aws-emulator\", \"request_id\": \"req-20260913001956\"}}",
+        "region": "us-central1",
+        "routed_through_ministack": true,
+        "status": "DEPLOYED",
+        "tier": "HIGH_PERFORMANCE",
+        "verification": "PASSED"
+      },
+      "ministack_raw_lines": [
+        "[2026-09-13T00:19:56.795052] POST /v1/projects/ltn-prod/zones/us-central1-a/clusters/DC-116_bare_metal_ceph_2pb_nvme_of_storage_cluster_stateful_store_db - Action: GoogleKubernetesEngineV1.CreateCluster - Status: 200"
+      ]
+    }
+  ]
+}

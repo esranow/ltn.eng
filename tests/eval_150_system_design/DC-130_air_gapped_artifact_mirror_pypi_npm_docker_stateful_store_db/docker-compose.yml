@@ -1,0 +1,4 @@
+services:
+  nexus:
+    image: sonatype/nexus3:latest
+    mem_limit: 8g

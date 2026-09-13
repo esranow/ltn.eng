@@ -1,0 +1,1 @@
+{"name": "schema-migrator", "dependencies": {"pg": "^8.11.0", "umzug": "^3.7.0"}}

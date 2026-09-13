@@ -1,0 +1,7 @@
+[package]
+name = "kms-envelope"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+aws-sdk-kms = "1.0"
+ring = "0.17"

@@ -1,0 +1,5 @@
+services:
+  prometheus:
+    image: prom/prometheus
+  node_exporter:
+    image: prom/node-exporter

@@ -1,0 +1,4 @@
+services:
+  es:
+    image: elasticsearch:8.12.0
+    mem_limit: 8g

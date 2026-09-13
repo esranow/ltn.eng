@@ -1,0 +1,1 @@
+{"name": "pci-vault", "dependencies": {"pg": "^8.11.0", "crypto": "^1.0.1"}}

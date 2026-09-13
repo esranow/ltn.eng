@@ -1,0 +1,4 @@
+services:
+  victoriametrics:
+    image: victoriametrics/victoria-metrics
+    mem_limit: 8g

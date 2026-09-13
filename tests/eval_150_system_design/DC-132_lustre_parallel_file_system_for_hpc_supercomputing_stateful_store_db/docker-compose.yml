@@ -1,0 +1,5 @@
+services:
+  lustre_mds:
+    image: lustre/mds
+  lustre_oss:
+    image: lustre/oss

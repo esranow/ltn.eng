@@ -1,0 +1,5 @@
+services:
+  staging_web:
+    image: nginx:alpine
+  staging_api:
+    image: app

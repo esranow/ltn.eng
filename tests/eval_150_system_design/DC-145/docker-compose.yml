@@ -1,0 +1,5 @@
+services:
+  spark_master:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
+  spark_worker:
+    image: bde2020/spark-worker:3.3.0-hadoop3.3

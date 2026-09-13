@@ -1,0 +1,6 @@
+services:
+  ffmpeg:
+    image: jrottenberg/ffmpeg
+  transcoder:
+    image: app
+    mem_limit: 8g

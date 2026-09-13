@@ -1,0 +1,5 @@
+services:
+  monolith:
+    image: app
+  cache:
+    image: redis:alpine

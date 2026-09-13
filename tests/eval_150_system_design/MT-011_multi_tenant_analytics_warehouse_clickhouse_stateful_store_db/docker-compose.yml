@@ -1,0 +1,4 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    mem_limit: 8g

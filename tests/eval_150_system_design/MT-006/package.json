@@ -1,0 +1,1 @@
+{"name": "rls-service", "dependencies": {"knex": "^3.1.0", "pg": "^8.11.0"}}

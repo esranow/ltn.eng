@@ -1,0 +1,4 @@
+services:
+  dr_sync:
+    image: postgres:16
+    mem_limit: 8g

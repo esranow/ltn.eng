@@ -1,0 +1,28 @@
+[package]
+name = "ltn-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ltn-core.workspace = true
+ltn-architect.workspace = true
+ltn-agent.workspace = true
+ltn-providers.workspace = true
+ltn-ops.workspace = true
+clap.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+open.workspace = true
+sysinfo.workspace = true
+
+[[bin]]
+name = "ltn"
+path = "src/main.rs"
+
+[[bin]]
+name = "map-mtl"
+path = "src/standalone_main.rs"

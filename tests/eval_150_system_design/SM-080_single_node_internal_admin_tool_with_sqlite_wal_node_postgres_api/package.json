@@ -1,0 +1,1 @@
+{"name": "admin-sqlite", "dependencies": {"better-sqlite3": "^9.4.3", "express": "^4.18.0"}}

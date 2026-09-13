@@ -1,0 +1,5 @@
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.29-latest
+  backend:
+    image: app

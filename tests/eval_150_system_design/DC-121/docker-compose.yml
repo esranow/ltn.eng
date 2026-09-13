@@ -1,0 +1,4 @@
+services:
+  edge_core:
+    image: k3s:latest
+    mem_limit: 8g

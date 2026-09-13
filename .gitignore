@@ -1,0 +1,25 @@
+# Rust build artifacts
+/target
+target/
+**/*.rs.bk
+*.pdb
+*.rlib
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Python cache & logs
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.bak

@@ -1,0 +1,42 @@
+[workspace]
+members = [
+    "crates/ltn-core",
+    "crates/ltn-architect",
+    "crates/ltn-agent",
+    "crates/ltn-providers",
+    "crates/ltn-ops",
+    "crates/ltn-cli",
+]
+resolver = "2"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+tokio = { version = "1.0", features = ["full"] }
+clap = { version = "4.4", features = ["derive"] }
+uuid = { version = "1.8", features = ["serde", "v4"] }
+z3 = "0.12.1"
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+toml = "0.8"
+ratatui = "0.26"
+crossterm = "0.27"
+open = "5.0"
+sysinfo = "0.30"
+
+ltn-core = { path = "crates/ltn-core" }
+ltn-architect = { path = "crates/ltn-architect" }
+ltn-agent = { path = "crates/ltn-agent" }
+ltn-providers = { path = "crates/ltn-providers" }
+ltn-ops = { path = "crates/ltn-ops" }
+
+[profile.dev]
+debug = 1
+
+[profile.test]
+debug = 1
+

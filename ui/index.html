@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LTN.ENG — Master Orchestration & Architecture Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">⚡</div>
+        <div class="brand-text">
+          <h2>LTN.ENG</h2>
+          <span>Master Orchestration</span>
+        </div>
+      </div>
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="dashboard">
+          <span class="icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" data-tab="analyze">
+          <span class="icon">🔍</span> Workload Analyzer
+        </button>
+        <button class="nav-item" data-tab="architect">
+          <span class="icon">🏛️</span> 3-Tier Architect
+        </button>
+        <button class="nav-item" data-tab="deploy">
+          <span class="icon">⚡</span> Deployment Engine
+        </button>
+        <button class="nav-item" data-tab="telemetry">
+          <span class="icon">📈</span> Live Telemetry
+        </button>
+        <button class="nav-item" data-tab="settings">
+          <span class="icon">⚙️</span> Configuration
+        </button>
+      </nav>
+      <div class="sandbox-badge">
+        <span class="pulse"></span> Docker Sandbox Active
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="top-bar">
+        <div class="page-title">
+          <h1 id="tab-heading">System Overview</h1>
+          <p id="tab-subheading">Empirical OS Observer & Z3 SMT Prover Status</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn btn-secondary" onclick="fetchSystemStatus()">🔄 Refresh Status</button>
+          <button class="btn btn-primary" onclick="switchTab('architect')">🏛️ New Plan</button>
+        </div>
+      </header>
+
+      <!-- TAB 1: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-page active">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon blue">🩺</div>
+            <div class="metric-info">
+              <span class="label">Sandbox Health</span>
+              <span class="value" id="status-sandbox">ACTIVE</span>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon purple">🧠</div>
+            <div class="metric-info">
+              <span class="label">Z3 SMT Solver</span>
+              <span class="value" id="status-z3">OPTIMAL</span>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon green">📡</div>
+            <div class="metric-info">
+              <span class="label">Socket Probes</span>
+              <span class="value" id="status-sockets">1 Active</span>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon orange">🛡️</div>
+            <div class="metric-info">
+              <span class="label">State Hasher</span>
+              <span class="value" id="status-hash">SHA-256 Valid</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-grid">
+          <div class="panel">
+            <h3>📦 Pre-bundled Workload Fixtures</h3>
+            <div class="fixtures-list">
+              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/react_vite_static')">
+                <span class="tag tag-web">StaticWeb</span>
+                <div class="fixture-details">
+                  <strong>React / Vite Frontend</strong>
+                  <span>tests/fixtures/react_vite_static</span>
+                </div>
+                <button class="btn-sm">Analyze</button>
+              </div>
+              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/node_postgres_api')">
+                <span class="tag tag-node">NodePostgresApi</span>
+                <div class="fixture-details">
+                  <strong>Node.js + Postgres API</strong>
+                  <span>tests/fixtures/node_postgres_api</span>
+                </div>
+                <button class="btn-sm">Analyze</button>
+              </div>
+              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/python_vllm_gpu')">
+                <span class="tag tag-gpu">PythonVllmGpu</span>
+                <div class="fixture-details">
+                  <strong>Python vLLM GPU Inference</strong>
+                  <span>tests/fixtures/python_vllm_gpu</span>
+                </div>
+                <button class="btn-sm">Analyze</button>
+              </div>
+              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/go_worker')">
+                <span class="tag tag-go">GoWorker</span>
+                <div class="fixture-details">
+                  <strong>Go Background Worker</strong>
+                  <span>tests/fixtures/go_worker</span>
+                </div>
+                <button class="btn-sm">Analyze</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>📜 Live Execution Activity Log</h3>
+            <div class="log-terminal" id="activity-log">
+              <div class="log-line info">[SYS] LTN.ENG Engine v1.0.0 Ready.</div>
+              <div class="log-line success">[Z3] Formal verification gate loaded.</div>
+              <div class="log-line info">[OBSERVER] Telemetry listener attached on port 8080.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: WORKLOAD ANALYZER -->
+      <section id="tab-analyze" class="tab-page">
+        <div class="panel">
+          <h3>🔍 Analyze Project Workload</h3>
+          <div class="input-group">
+            <input type="text" id="analyze-path" value="/workspace/tests/fixtures/python_vllm_gpu" placeholder="Enter target project path...">
+            <button class="btn btn-primary" onclick="runAnalysis()">Analyze Workload</button>
+          </div>
+
+          <div id="analyze-results" class="results-box hidden">
+            <h4>Analysis Result</h4>
+            <div class="result-card">
+              <div class="result-header">
+                <span class="badge" id="res-kind">PythonVllmGpu</span>
+                <h3 id="res-desc">Python High-Performance LLM/GPU Inference Workload</h3>
+              </div>
+              <div class="specs-grid">
+                <div class="spec-item">
+                  <span class="spec-label">Detected Manifests</span>
+                  <span class="spec-val" id="res-manifests">pyproject.toml/requirements.txt</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Rec. CPU Cores</span>
+                  <span class="spec-val" id="res-cpu">8 Cores</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Rec. RAM</span>
+                  <span class="spec-val" id="res-ram">32768 MB</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Rec. VRAM</span>
+                  <span class="spec-val" id="res-vram">24576 MB</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: 3-TIER ARCHITECT -->
+      <section id="tab-architect" class="tab-page">
+        <div class="panel">
+          <h3>🏛️ 3-Tier Architecture Planner</h3>
+          <div class="input-group">
+            <input type="text" id="architect-path" value="/workspace/tests/fixtures/node_postgres_api" placeholder="Enter project path...">
+            <button class="btn btn-primary" onclick="runArchitect()">Generate Plans</button>
+          </div>
+
+          <div id="architect-results" class="plans-grid hidden">
+            <!-- Plan Cards Generated via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: DEPLOYMENT ENGINE -->
+      <section id="tab-deploy" class="tab-page">
+        <div class="panel">
+          <h3>⚡ Deploy Project via Z3 SMT Gate</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Target Path</label>
+              <input type="text" id="deploy-path" value="/workspace/tests/fixtures/react_vite_static">
+            </div>
+            <div class="form-group">
+              <label>Target Tier</label>
+              <select id="deploy-tier">
+                <option value="CHEAPEST">CHEAPEST (Local Docker)</option>
+                <option value="BALANCED" selected>BALANCED (AWS ECS/RDS)</option>
+                <option value="HIGH_PERFORMANCE">HIGH-PERFORMANCE (GCP Cluster)</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block" onclick="runDeploy()">🚀 Execute Deployment</button>
+
+          <div id="deploy-progress" class="progress-box hidden">
+            <h4>Agent Harness Lifecycle Progress</h4>
+            <div class="timeline">
+              <div class="step" id="step-read"><span>1</span> READ</div>
+              <div class="step" id="step-plan"><span>2</span> PLAN</div>
+              <div class="step" id="step-validate"><span>3</span> VALIDATE (Z3)</div>
+              <div class="step" id="step-mutate"><span>4</span> MUTATE</div>
+              <div class="step" id="step-verify"><span>5</span> VERIFY</div>
+            </div>
+            <div id="deploy-output" class="log-terminal"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: TELEMETRY -->
+      <section id="tab-telemetry" class="tab-page">
+        <div class="panel">
+          <h3>📈 Empirical Observer Telemetry</h3>
+          <div class="telemetry-grid">
+            <div class="telemetry-card">
+              <h4>Socket Probes</h4>
+              <table class="data-table">
+                <thead>
+                  <tr><th>Address</th><th>Status</th><th>Latency</th></tr>
+                </thead>
+                <tbody id="socket-table-body">
+                  <tr><td>127.0.0.1:8080</td><td><span class="status-online">REACHABLE</span></td><td>1.2 ms</td></tr>
+                </thead>
+              </table>
+            </div>
+            <div class="telemetry-card">
+              <h4>Process Table</h4>
+              <table class="data-table">
+                <thead>
+                  <tr><th>Process Name</th><th>PID</th><th>Status</th></tr>
+                </thead>
+                <tbody id="process-table-body">
+                  <tr><td>ltn-sandbox</td><td>100</td><td><span class="status-online">RUNNING</span></td></tr>
+                </thead>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: SETTINGS -->
+      <section id="tab-settings" class="tab-page">
+        <div class="panel">
+          <h3>⚙️ Provider & System Configuration</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Default Provider</label>
+              <select id="cfg-provider">
+                <option value="LOCAL_DOCKER">LOCAL_DOCKER</option>
+                <option value="AWS">AWS</option>
+                <option value="GCP">GCP</option>
+                <option value="AZURE">AZURE</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Probe Interval (Seconds)</label>
+              <input type="number" id="cfg-interval" value="10">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

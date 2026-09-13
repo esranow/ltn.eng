@@ -1,0 +1,5 @@
+services:
+  clamav:
+    image: clamav/clamav:latest
+  scanner:
+    image: app

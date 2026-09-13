@@ -1,0 +1,4 @@
+[project]
+name = "h100-trainer"
+version = "0.1.0"
+dependencies = ["torch", "deepspeed", "vllm"]

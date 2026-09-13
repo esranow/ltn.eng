@@ -1,0 +1,5 @@
+services:
+  ceph_mon:
+    image: ceph/daemon:latest
+  ceph_osd:
+    image: ceph/daemon:latest

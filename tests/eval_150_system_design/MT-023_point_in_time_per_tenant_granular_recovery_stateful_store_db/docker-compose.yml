@@ -1,0 +1,4 @@
+services:
+  pitr_mgr:
+    image: postgres:16
+    mem_limit: 8g

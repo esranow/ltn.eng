@@ -1,0 +1,4 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    mem_limit: 8g

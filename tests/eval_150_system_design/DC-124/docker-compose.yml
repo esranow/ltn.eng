@@ -1,0 +1,6 @@
+services:
+  video_ingest:
+    image: app
+    mem_limit: 8g
+  san_store:
+    image: storage

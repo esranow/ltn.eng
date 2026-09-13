@@ -1,0 +1,4 @@
+services:
+  minio_roce:
+    image: minio/minio:latest
+    mem_limit: 8g

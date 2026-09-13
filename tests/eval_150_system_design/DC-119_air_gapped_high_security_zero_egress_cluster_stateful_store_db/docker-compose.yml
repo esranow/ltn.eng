@@ -1,0 +1,4 @@
+services:
+  airgap_app:
+    image: private-registry/app:latest
+    network_mode: none

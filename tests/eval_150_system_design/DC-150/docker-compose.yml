@@ -1,0 +1,6 @@
+services:
+  wan_opt:
+    image: app
+    mem_limit: 8g
+  wan_router:
+    image: router
