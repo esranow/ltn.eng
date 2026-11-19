@@ -139,6 +139,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires the MiniStack mock on 127.0.0.1:4566"]
     fn test_real_http_call_to_ministack_gcp() {
         let _lock = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("GCP_ENDPOINT_URL", "http://127.0.0.1:4566");

@@ -181,6 +181,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires the MiniStack mock on 127.0.0.1:4566"]
     fn test_real_http_call_to_ministack() {
         let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("AWS_ACCESS_KEY_ID", "mock_key");
@@ -215,6 +216,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires the MiniStack mock on 127.0.0.1:4566"]
     fn test_ministack_request_id_changes_across_seconds() {
         let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("AWS_ACCESS_KEY_ID", "mock_key");

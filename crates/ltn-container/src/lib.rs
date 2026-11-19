@@ -204,6 +204,7 @@ services:
     }
 
     #[test]
+    #[ignore = "legacy demo engine: only passes with Docker stopped (stand-in process); with Docker running it tries images that do not exist"]
     fn test_deterministic_container_engine_lifecycle() {
         let mut engine = DeterministicContainerEngine::new();
         assert_eq!(engine.list_containers().len(), 0);
