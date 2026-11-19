@@ -814,14 +814,30 @@ dependencies = [
  "ltn-architect",
  "ltn-container",
  "ltn-core",
+ "ltn-mcp",
  "ltn-ops",
  "ltn-providers",
+ "ltn-state",
  "open",
  "ratatui",
  "serde",
  "serde_json",
  "sysinfo",
  "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "ltn-cloud"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "ltn-state",
+ "serde",
+ "serde_json",
+ "toml",
  "uuid",
 ]
 
@@ -860,6 +876,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "ltn-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "ltn-state",
+ "serde",
+ "serde_json",
+ "ureq",
+ "uuid",
+]
+
+[[package]]
+name = "ltn-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-cloud",
+ "ltn-core",
+ "ltn-engine",
+ "ltn-observe",
+ "ltn-state",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "ltn-observe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "ltn-state",
+ "serde",
+ "serde_json",
+ "ureq",
+ "uuid",
+]
+
+[[package]]
 name = "ltn-ops"
 version = "0.1.0"
 dependencies = [
@@ -893,6 +953,19 @@ dependencies = [
  "tokio",
  "tracing",
  "ureq",
+ "uuid",
+]
+
+[[package]]
+name = "ltn-state"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "serde",
+ "serde_json",
+ "toml",
  "uuid",
 ]
 

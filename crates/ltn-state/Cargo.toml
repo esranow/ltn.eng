@@ -1,0 +1,14 @@
+[package]
+name = "ltn-state"
+version = "0.1.0"
+edition = "2021"
+description = "Shared base for the ltn runtime: app spec, Docker CLI wrapper, deployment state store, tool and provisioner contracts."
+
+[dependencies]
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+anyhow.workspace = true

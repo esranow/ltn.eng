@@ -1,0 +1,15 @@
+[package]
+name = "ltn-cloud"
+version = "0.1.0"
+edition = "2021"
+description = "Cloud provisioner: instance catalog and OpenTofu-provisioned Docker hosts (AWS first)."
+
+[dependencies]
+ltn-state.workspace = true
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+toml.workspace = true

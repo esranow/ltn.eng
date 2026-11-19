@@ -1,0 +1,17 @@
+[package]
+name = "ltn-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "MCP stdio server exposing the ltn runtime tools."
+
+[dependencies]
+ltn-state.workspace = true
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+ltn-engine.workspace = true
+ltn-observe.workspace = true
+ltn-cloud.workspace = true

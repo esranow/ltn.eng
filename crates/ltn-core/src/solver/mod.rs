@@ -1,6 +1,7 @@
 pub mod gang_packing;
 pub mod graph;
 pub mod invariants;
+pub mod placement;
 pub mod smt;
 
 pub use gang_packing::{

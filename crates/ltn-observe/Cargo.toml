@@ -1,0 +1,15 @@
+[package]
+name = "ltn-observe"
+version = "0.1.0"
+edition = "2021"
+description = "Observer and debugger: status, logs, evidence-based diagnosis, watch loop with auto-repair."
+
+[dependencies]
+ltn-state.workspace = true
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+ureq = "2.10"

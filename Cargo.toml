@@ -6,6 +6,11 @@ members = [
     "crates/ltn-providers",
     "crates/ltn-ops",
     "crates/ltn-container",
+    "crates/ltn-state",
+    "crates/ltn-engine",
+    "crates/ltn-observe",
+    "crates/ltn-cloud",
+    "crates/ltn-mcp",
     "crates/ltn-cli",
 ]
 resolver = "2"
@@ -36,6 +41,11 @@ ltn-agent = { path = "crates/ltn-agent" }
 ltn-providers = { path = "crates/ltn-providers" }
 ltn-ops = { path = "crates/ltn-ops" }
 ltn-container = { path = "crates/ltn-container" }
+ltn-state = { path = "crates/ltn-state" }
+ltn-engine = { path = "crates/ltn-engine" }
+ltn-observe = { path = "crates/ltn-observe" }
+ltn-cloud = { path = "crates/ltn-cloud" }
+ltn-mcp = { path = "crates/ltn-mcp" }
 
 [profile.dev]
 debug = 1
