@@ -62,7 +62,7 @@ impl Default for LlmConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LtnSettings {
     #[serde(default)]
     pub provider: ProviderConfig,
@@ -70,16 +70,6 @@ pub struct LtnSettings {
     pub telemetry: TelemetryConfig,
     #[serde(default)]
     pub llm: LlmConfig,
-}
-
-impl Default for LtnSettings {
-    fn default() -> Self {
-        Self {
-            provider: ProviderConfig::default(),
-            telemetry: TelemetryConfig::default(),
-            llm: LlmConfig::default(),
-        }
-    }
 }
 
 impl LtnSettings {
@@ -91,8 +81,8 @@ impl LtnSettings {
         }
 
         let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-        
-        let is_toml = path.extension().map_or(false, |ext| ext == "toml");
+
+        let is_toml = path.extension().is_some_and(|ext| ext == "toml");
         if is_toml {
             if let Ok(settings) = toml::from_str::<Self>(&content) {
                 return Ok(settings);
@@ -111,7 +101,7 @@ impl LtnSettings {
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let is_toml = path.extension().map_or(false, |ext| ext == "toml");
+        let is_toml = path.extension().is_some_and(|ext| ext == "toml");
         let content = if is_toml {
             toml::to_string_pretty(self).map_err(|e| e.to_string())?
         } else {
@@ -120,4 +110,3 @@ impl LtnSettings {
         fs::write(path, content).map_err(|e| e.to_string())
     }
 }
-

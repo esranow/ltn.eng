@@ -14,3 +14,4 @@ z3.workspace = true
 tracing.workspace = true
 chrono.workspace = true
 toml.workspace = true
+sysinfo.workspace = true

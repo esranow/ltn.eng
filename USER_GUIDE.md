@@ -75,6 +75,14 @@ ltn deploy ./my-app --tier HIGH_PERFORMANCE --output receipt.json
 ltn status
 ```
 
+### 5. Launch Deterministic Containers Directly
+Execute any Docker Compose, Kubernetes, K6s, or custom YAML manifest deterministically without Docker or K8s daemons:
+```bash
+ltn run ./my-app/docker-compose.yml
+# or
+ltn run ./my-app/kubernetes.yaml
+```
+
 ---
 
 ## Configuration File Schema (`D:\.ltn-graph\config.toml`)
@@ -98,3 +106,4 @@ max_fix_attempts = 3
 - **State File**: `D:\.ltn-graph\state.json`
 - **Contracts**: `D:\.ltn-graph\contracts\*.schema.json`
 - **Final Report**: `D:\.ltn-graph\FINAL_REPORT.md`
+

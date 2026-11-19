@@ -25,7 +25,11 @@ pub fn run_tui(settings: &LtnSettings) -> Result<(), Box<dyn std::error::Error>>
     let res = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
     terminal.show_cursor()?;
 
     if let Err(err) = res {
@@ -79,6 +83,18 @@ fn run_app<B: ratatui::backend::Backend>(
                         KeyCode::Backspace => {
                             app.input.pop();
                         }
+                        KeyCode::Up => {
+                            app.history_prev();
+                        }
+                        KeyCode::Down => {
+                            app.history_next();
+                        }
+                        KeyCode::PageUp => {
+                            app.scroll_up();
+                        }
+                        KeyCode::PageDown => {
+                            app.scroll_down();
+                        }
                         KeyCode::Enter => {
                             if app.input == "/quit" || app.input == "exit" {
                                 return Ok(());
@@ -92,6 +108,9 @@ fn run_app<B: ratatui::backend::Backend>(
                     },
                 }
             }
+        } else {
+            // Background periodic tick: update live telemetry metrics
+            app.refresh_metrics();
         }
 
         if app.should_quit {

@@ -53,7 +53,9 @@ impl MissingArtifactGenerator {
         artifacts.push(GeneratedArtifact {
             file_path: "docker-compose.yml".to_string(),
             artifact_type: "DOCKER_COMPOSE".to_string(),
-            content: "version: '3.8'\nservices:\n  app:\n    build: .\n    ports:\n      - '8080:8080'\n".to_string(),
+            content:
+                "version: '3.8'\nservices:\n  app:\n    build: .\n    ports:\n      - '8080:8080'\n"
+                    .to_string(),
         });
 
         artifacts

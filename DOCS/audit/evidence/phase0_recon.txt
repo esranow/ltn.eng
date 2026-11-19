@@ -1,0 +1,127 @@
+================================================================================
+LTN.ENG ADVERSARIAL AUDIT — PHASE 0 RECONNAISSANCE EVIDENCE
+Generated: 2026-10-08
+Workspace: D:\ltn-eng-workspace
+================================================================================
+
+1. CRATE INVENTORY & METRICS
+--------------------------------------------------------------------------------
+Crate: ltn-core
+  Path: D:\ltn-eng-workspace\crates\ltn-core
+  LOC: 4,845 lines across 29 .rs files
+  Unit Tests: 98 #[test] functions
+  Purpose: Formal IR, SMT constraint rules & MUS extraction, SHA-256 state hasher, transactional state machine, settings manager, hardware topology schema, simulated vault.
+  Public API Modules: config, crypto, guardrails, ir, memory, solver, state_machine, topology, vault.
+  Dependencies: serde, serde_json, thiserror, anyhow, uuid, sha2, z3 (0.12.1), tracing, chrono, toml, sysinfo.
+
+Crate: ltn-architect
+  Path: D:\ltn-eng-workspace\crates\ltn-architect
+  LOC: 4,693 lines across 15 .rs files
+  Unit Tests: 52 #[test] functions
+  Purpose: AST & project manifest discovery (package.json, Cargo.toml, pyproject.toml, go.mod, pom.xml), workload classifier (WorkloadKind), 3-tier architecture planner (CHEAPEST, BALANCED, HIGH_PERFORMANCE), artifact generator, L7/Cilium network planner.
+  Public API Modules: architect, artifacts, classifier, parsers, planner.
+  Dependencies: ltn-core, serde, serde_json, thiserror, anyhow, uuid, tracing.
+
+Crate: ltn-agent
+  Path: D:\ltn-eng-workspace\crates\ltn-agent
+  LOC: 3,916 lines across 21 .rs files
+  Unit Tests: 43 #[test] functions
+  Purpose: Autonomous agent harness (5-phase lifecycle: READ -> PLAN -> VALIDATE -> MUTATE -> VERIFY), tool registry, deterministic validation gate, Cargo diagnostic parser, simulation runner, ticket diagnostic engine.
+  Public API Modules: diagnostics, gate, harness, prompt, registry, router, scheduler, simulator, tickets.
+  Dependencies: ltn-core, ltn-architect, ltn-ops, chrono, serde, serde_json, thiserror, anyhow, uuid, tracing, sha2.
+
+Crate: ltn-providers
+  Path: D:\ltn-eng-workspace\crates\ltn-providers
+  LOC: 2,001 lines across 12 .rs files
+  Unit Tests: 49 #[test] functions
+  Purpose: Infrastructure actuators (Docker, AWS, GCP, Azure, Bare-Metal, Local OS) and authentication checking (AuthChecker).
+  Public API Modules: actuators (aws, azure, bare_metal, deterministic_container, docker, gcp, http_client, local_os), auth (checker).
+  Dependencies: ltn-core, ltn-container, serde, serde_json, thiserror, anyhow, tokio, tracing, uuid, sysinfo, ureq (2.10).
+
+Crate: ltn-ops
+  Path: D:\ltn-eng-workspace\crates\ltn-ops
+  LOC: 3,842 lines across 17 .rs files
+  Unit Tests: 41 #[test] functions
+  Purpose: Empirical telemetry observer (socket/HTTP probes), autonomous diagnosis, canary traffic shifting, self-healing reconciliation daemon, Chronos chaos engine, WireGuard mesh coordinator, MCP server.
+  Public API Modules: canary, chaos, diagnosis, healing, mcp (server), mesh, observer, reconciliation.
+  Dependencies: ltn-core, serde, serde_json, thiserror, anyhow, tokio, tracing, chrono, sysinfo, uuid.
+
+Crate: ltn-container
+  Path: D:\ltn-eng-workspace\crates\ltn-container
+  LOC: 1,121 lines across 12 .rs files
+  Unit Tests: 9 #[test] functions
+  Purpose: In-memory deterministic container execution engine, Compose/K8s manifest parser, ring buffer metrics.
+  Public API Modules: engine, scheduler, manifest, metrics.
+  Dependencies: ltn-core, serde, serde_json, thiserror, anyhow, uuid.
+
+Crate: ltn-cli
+  Path: D:\ltn-eng-workspace\crates\ltn-cli
+  LOC: 3,927 lines across 8 .rs files
+  Unit Tests: 39 #[test] functions
+  Purpose: Command-line interface binary ('ltn') and interactive Terminal UI. Exposes 26 subcommands.
+  Dependencies: clap, ratatui, crossterm, open, ltn-core, ltn-architect, ltn-agent, ltn-providers, ltn-ops, ltn-container.
+
+Integration Tests:
+  Path: D:\ltn-eng-workspace\tests\deterministic_container_integration.rs
+  LOC: 468 lines
+  Tests: 5 #[test] functions
+
+Workspace Totals:
+  7 Crates + 1 Integration Suite
+  114 Rust source files (.rs)
+  24,813 Total Lines of Code
+  336 Unit and Integration Tests
+
+2. ACTUATOR & PROVIDER RECONNAISSANCE
+--------------------------------------------------------------------------------
+DockerActuator:
+  Type: Local process execution.
+  Action: Invokes `docker` binary via `std::process::Command`. Requires host Docker daemon.
+
+AwsActuator:
+  Type: HTTP network calls via `ureq`.
+  Action: Hits AWS_ENDPOINT_URL (default: http://127.0.0.1:4566, MiniStack emulator).
+  Payload: Sends raw JSON with header `X-Amz-Target: AmazonEC2ContainerServiceV20141113.RunTask`.
+  Defect/Stub: Does NOT use AWS SDK or SigV4 request signing. Cannot execute against real AWS endpoints (fails 403 Forbidden).
+
+AzureActuator:
+  Type: HTTP network calls via `ureq`.
+  Action: Hits AZURE_ENDPOINT_URL (default fallback to MiniStack port 4566).
+  Payload: Hardcoded path `/subscriptions/sub-1/...` and header `X-Amz-Target: AzureResourceManager.CreateOrUpdateCluster`.
+  Defect/Stub: FABRICATED protocol. Sends AWS headers to Azure paths. Fails completely against real Azure Resource Manager (management.azure.com).
+
+GcpActuator:
+  Type: HTTP network calls via `ureq`.
+  Action: Hits GCP_ENDPOINT_URL (default fallback to MiniStack port 4566).
+  Payload: Hardcoded path `/v1/projects/ltn-prod/...` and header `X-Amz-Target: GoogleKubernetesEngineV1.CreateCluster`.
+  Defect/Stub: FABRICATED protocol. Sends AWS headers to GCP paths. Fails completely against real Google Cloud (container.googleapis.com).
+
+BareMetalActuator:
+  Type: In-memory string templating + local TCP probe.
+  Action: Generates systemd unit file text. Probes port 22 with 200ms TCP timeout.
+  Defect/Stub: DOES NOT SSH OR PROVISION. If remote node responds to port 22, it clones the LOCAL HOST machine's CPU/RAM specs (from sysinfo) and returns it as the remote node's hardware.
+
+LocalOsActuator:
+  Type: Local process execution.
+  Action: Spawns host OS processes via `std::process::Command`.
+
+DeterministicContainerActuator:
+  Type: In-memory simulation.
+  Action: Manages simulated container lifecycle maps in memory.
+
+3. AUTHENTICATION GATES (AuthChecker)
+--------------------------------------------------------------------------------
+- LOCAL_OS / BARE_METAL: Hardcoded to return AuthStatus::Authenticated.
+- AWS: Returns Authenticated if AWS_ENDPOINT_URL is set (allows bypass with MiniStack).
+- GCP: Returns Authenticated if GCP_ENDPOINT_URL or GEMINI_API_KEY is set.
+- AZURE: Returns Authenticated if AZURE_ENDPOINT_URL is set.
+
+4. SECRETS & CREDENTIALS AUDIT
+--------------------------------------------------------------------------------
+- crates/ltn-cli/src/main.rs (line 176): Hardcoded default passphrase "ltn_master_guardrail_passphrase".
+- bin/run-spot-check-eval.py (line 32): Hardcoded AWS_SECRET_ACCESS_KEY="test-secret".
+- bin/test_bare_metal_and_edge_e2e.py (line 14): Hardcoded AWS_SECRET_ACCESS_KEY="mock_secret".
+- bin/verify_g4.py (line 17): Hardcoded AWS_SECRET_ACCESS_KEY="mock_secret".
+- bin/ministack-service.py: Dummy emulator responding HTTP 200 OK to all requests.
+- .agents/mcp_config.json: Points to http://localhost:4566 (MiniStack) and passes ${env:GEMINI_API_KEY}.
+- C:\Users\Hp\.ltn\config.toml: Contains active_model = "gemini-2.5-flash", local_endpoint = "http://localhost:11434".

@@ -19,7 +19,6 @@ impl StateHasher {
         Self::hash_bytes(s.as_bytes())
     }
 
-
     pub fn hash_json<T: serde::Serialize>(val: &T) -> String {
         let json_bytes = serde_json::to_vec(val).unwrap_or_default();
         Self::hash_bytes(&json_bytes)

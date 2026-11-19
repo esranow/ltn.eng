@@ -4,6 +4,11 @@ pub mod classifier;
 pub mod parsers;
 pub mod planner;
 
+pub use architect::{
+    AutomatedSystemsArchitect, CapacitySizingCalculator, CapacitySizingProof, CapacitySizingTarget,
+    LeastPrivilegeIamGenerator, MultiTierTierSpec, SynthesizedMultiTierArchitecture,
+};
+pub use planner::{AiCiliumPlanner, L7SecurityRule, ZeroTrustNetworkContract};
 
 #[cfg(test)]
 mod tests {
@@ -28,7 +33,10 @@ mod tests {
                 return candidate.clone();
             }
         }
-        panic!("tests/fixtures directory not found among candidates: {:?}", candidates);
+        panic!(
+            "tests/fixtures directory not found among candidates: {:?}",
+            candidates
+        );
     }
 
     struct TempTestDir {
@@ -37,7 +45,8 @@ mod tests {
 
     impl TempTestDir {
         fn new(prefix: &str) -> Self {
-            let path = std::env::temp_dir().join(format!("ltn-test-{}-{}", prefix, uuid::Uuid::new_v4()));
+            let path =
+                std::env::temp_dir().join(format!("ltn-test-{}-{}", prefix, uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&path).expect("failed to create temp test dir");
             Self { path }
         }
@@ -63,24 +72,36 @@ mod tests {
         // 1. node_postgres_api fixture
         let node_dir = fixtures.join("node_postgres_api");
         let discovery = ManifestParser::discover_in_dir(&node_dir);
-        assert!(discovery.has_package_json, "node_postgres_api should have package.json");
-        assert!(discovery.detected_files.contains(&"package.json".to_string()));
+        assert!(
+            discovery.has_package_json,
+            "node_postgres_api should have package.json"
+        );
+        assert!(discovery
+            .detected_files
+            .contains(&"package.json".to_string()));
         assert!(!discovery.has_cargo_toml);
         assert!(!discovery.has_go_mod);
         assert!(!discovery.has_pyproject_toml);
         assert!(!discovery.has_docker_compose());
 
-        let parsed = ManifestParser::parse_package_json(&node_dir).expect("should parse valid package.json");
+        let parsed =
+            ManifestParser::parse_package_json(&node_dir).expect("should parse valid package.json");
         assert_eq!(parsed["name"], "node-postgres-api");
         assert_eq!(parsed["dependencies"]["express"], "^4.18.2");
 
         // 2. react_vite_static fixture
         let react_dir = fixtures.join("react_vite_static");
         let discovery_react = ManifestParser::discover_in_dir(&react_dir);
-        assert!(discovery_react.has_package_json, "react_vite_static should have package.json");
-        assert!(discovery_react.detected_files.contains(&"package.json".to_string()));
+        assert!(
+            discovery_react.has_package_json,
+            "react_vite_static should have package.json"
+        );
+        assert!(discovery_react
+            .detected_files
+            .contains(&"package.json".to_string()));
 
-        let parsed_react = ManifestParser::parse_package_json(&react_dir).expect("should parse valid package.json");
+        let parsed_react = ManifestParser::parse_package_json(&react_dir)
+            .expect("should parse valid package.json");
         assert_eq!(parsed_react["name"], "react-vite-static");
         assert_eq!(parsed_react["dependencies"]["react"], "^18.2.0");
     }
@@ -105,8 +126,18 @@ mod tests {
         let py_dir = fixtures.join("python_vllm_gpu");
         let discovery = ManifestParser::discover_in_dir(&py_dir);
 
-        assert!(discovery.has_pyproject_toml, "python_vllm_gpu should have pyproject.toml");
-        assert!(discovery.detected_files.contains(&"pyproject.toml".to_string()) || discovery.detected_files.contains(&"requirements.txt".to_string()));
+        assert!(
+            discovery.has_pyproject_toml,
+            "python_vllm_gpu should have pyproject.toml"
+        );
+        assert!(
+            discovery
+                .detected_files
+                .contains(&"pyproject.toml".to_string())
+                || discovery
+                    .detected_files
+                    .contains(&"requirements.txt".to_string())
+        );
         assert!(!discovery.has_cargo_toml);
         assert!(!discovery.has_package_json);
         assert!(!discovery.has_go_mod);
@@ -133,8 +164,13 @@ mod tests {
         let store_dir = fixtures.join("stateful_store");
         let discovery = ManifestParser::discover_in_dir(&store_dir);
 
-        assert!(discovery.has_docker_compose(), "stateful_store should have docker-compose.yml");
-        assert!(discovery.detected_files.contains(&"docker-compose.yml".to_string()));
+        assert!(
+            discovery.has_docker_compose(),
+            "stateful_store should have docker-compose.yml"
+        );
+        assert!(discovery
+            .detected_files
+            .contains(&"docker-compose.yml".to_string()));
         assert!(!discovery.has_package_json);
         assert!(!discovery.has_cargo_toml);
         assert!(!discovery.has_go_mod);
@@ -159,7 +195,8 @@ mod tests {
 
     #[test]
     fn test_manifest_failure_non_existent_directory() {
-        let nonexistent = std::env::temp_dir().join(format!("ltn-nonexistent-{}", uuid::Uuid::new_v4()));
+        let nonexistent =
+            std::env::temp_dir().join(format!("ltn-nonexistent-{}", uuid::Uuid::new_v4()));
         assert!(!nonexistent.exists());
 
         let discovery = ManifestParser::discover_in_dir(&nonexistent);
@@ -181,28 +218,56 @@ mod tests {
     fn test_manifest_failure_corrupt_json() {
         let temp_dir = TempTestDir::new("corrupt");
         let bad_json_path = temp_dir.path.join("package.json");
-        std::fs::write(&bad_json_path, "{ \"name\": \"corrupt\", dependencies: { unclosed_bracket ").expect("write bad json");
+        std::fs::write(
+            &bad_json_path,
+            "{ \"name\": \"corrupt\", dependencies: { unclosed_bracket ",
+        )
+        .expect("write bad json");
 
         let discovery = ManifestParser::discover_in_dir(&temp_dir.path);
         // Corrupted JSON should NOT register as a valid package.json manifest
-        assert!(!discovery.has_package_json, "Corrupt package.json must not be accepted as valid");
-        assert!(!discovery.detected_files.contains(&"package.json".to_string()));
+        assert!(
+            !discovery.has_package_json,
+            "Corrupt package.json must not be accepted as valid"
+        );
+        assert!(!discovery
+            .detected_files
+            .contains(&"package.json".to_string()));
         assert!(discovery.detected_files.is_empty());
 
         // parse_package_json should explicitly return Err
         let parse_result = ManifestParser::parse_package_json(&temp_dir.path);
-        assert!(parse_result.is_err(), "parse_package_json should fail on corrupt JSON");
+        assert!(
+            parse_result.is_err(),
+            "parse_package_json should fail on corrupt JSON"
+        );
         let err_msg = parse_result.unwrap_err();
-        assert!(err_msg.contains("Corrupt JSON"), "Error should indicate corruption: {}", err_msg);
+        assert!(
+            err_msg.contains("Corrupt JSON"),
+            "Error should indicate corruption: {}",
+            err_msg
+        );
     }
 
     #[test]
     fn test_manifest_multi_manifest_coexistence() {
         let temp_dir = TempTestDir::new("multi-manifest");
-        std::fs::write(temp_dir.path.join("package.json"), r#"{"name": "full-stack", "version": "1.0.0"}"#).unwrap();
-        std::fs::write(temp_dir.path.join("Cargo.toml"), "[package]\nname = \"core\"\nversion = \"0.1.0\"").unwrap();
+        std::fs::write(
+            temp_dir.path.join("package.json"),
+            r#"{"name": "full-stack", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            temp_dir.path.join("Cargo.toml"),
+            "[package]\nname = \"core\"\nversion = \"0.1.0\"",
+        )
+        .unwrap();
         std::fs::write(temp_dir.path.join("Dockerfile"), "FROM alpine:3.19\n").unwrap();
-        std::fs::write(temp_dir.path.join("docker-compose.yml"), "version: '3'\nservices:\n  app:\n    build: .\n").unwrap();
+        std::fs::write(
+            temp_dir.path.join("docker-compose.yml"),
+            "version: '3'\nservices:\n  app:\n    build: .\n",
+        )
+        .unwrap();
 
         let discovery = ManifestParser::discover_in_dir(&temp_dir.path);
         assert!(discovery.has_package_json);
@@ -217,29 +282,89 @@ mod tests {
         let fixtures = fixtures_base_dir();
         let matrix = [
             ("go_worker", "go.mod", true, false, false, false, false),
-            ("node_postgres_api", "package.json", false, true, false, false, false),
-            ("python_vllm_gpu", "pyproject.toml", false, false, true, false, false),
-            ("react_vite_static", "package.json", false, true, false, false, false),
+            (
+                "node_postgres_api",
+                "package.json",
+                false,
+                true,
+                false,
+                false,
+                false,
+            ),
+            (
+                "python_vllm_gpu",
+                "pyproject.toml",
+                false,
+                false,
+                true,
+                false,
+                false,
+            ),
+            (
+                "react_vite_static",
+                "package.json",
+                false,
+                true,
+                false,
+                false,
+                false,
+            ),
             ("rust_wasm", "Cargo.toml", false, false, false, true, false),
-            ("stateful_store", "docker-compose.yml", false, false, false, false, true),
+            (
+                "stateful_store",
+                "docker-compose.yml",
+                false,
+                false,
+                false,
+                false,
+                true,
+            ),
         ];
 
-        for (fixture_name, expected_file, exp_go, exp_node, exp_py, exp_rust, exp_compose) in matrix {
+        for (fixture_name, expected_file, exp_go, exp_node, exp_py, exp_rust, exp_compose) in matrix
+        {
             let fixture_path = fixtures.join(fixture_name);
-            assert!(fixture_path.exists(), "Fixture path {:?} must exist", fixture_path);
+            assert!(
+                fixture_path.exists(),
+                "Fixture path {:?} must exist",
+                fixture_path
+            );
 
             let discovery = ManifestParser::discover_in_dir(&fixture_path);
             assert!(
-                discovery.detected_files.contains(&expected_file.to_string()),
+                discovery
+                    .detected_files
+                    .contains(&expected_file.to_string()),
                 "Fixture {} should detect file {}",
                 fixture_name,
                 expected_file
             );
-            assert_eq!(discovery.has_go_mod, exp_go, "Fixture {} go_mod mismatch", fixture_name);
-            assert_eq!(discovery.has_package_json, exp_node, "Fixture {} package_json mismatch", fixture_name);
-            assert_eq!(discovery.has_pyproject_toml, exp_py, "Fixture {} pyproject mismatch", fixture_name);
-            assert_eq!(discovery.has_cargo_toml, exp_rust, "Fixture {} cargo_toml mismatch", fixture_name);
-            assert_eq!(discovery.has_docker_compose(), exp_compose, "Fixture {} docker_compose mismatch", fixture_name);
+            assert_eq!(
+                discovery.has_go_mod, exp_go,
+                "Fixture {} go_mod mismatch",
+                fixture_name
+            );
+            assert_eq!(
+                discovery.has_package_json, exp_node,
+                "Fixture {} package_json mismatch",
+                fixture_name
+            );
+            assert_eq!(
+                discovery.has_pyproject_toml, exp_py,
+                "Fixture {} pyproject mismatch",
+                fixture_name
+            );
+            assert_eq!(
+                discovery.has_cargo_toml, exp_rust,
+                "Fixture {} cargo_toml mismatch",
+                fixture_name
+            );
+            assert_eq!(
+                discovery.has_docker_compose(),
+                exp_compose,
+                "Fixture {} docker_compose mismatch",
+                fixture_name
+            );
         }
     }
 
@@ -266,7 +391,8 @@ mod tests {
     fn test_missing_artifact_generator() {
         let discovery = ManifestParser::discover_in_dir(Path::new("."));
         let classification = WorkloadClassifier::classify(&discovery, "node_app");
-        let artifacts = MissingArtifactGenerator::generate_missing_artifacts(&classification, false);
+        let artifacts =
+            MissingArtifactGenerator::generate_missing_artifacts(&classification, false);
 
         assert!(!artifacts.is_empty());
         assert_eq!(artifacts[0].file_path, "Dockerfile");
@@ -287,7 +413,8 @@ mod tests {
         let plan = architect.synthesize_architecture("test-service", "SKELETON_IR");
         assert_eq!(plan.nodes.len(), 2);
 
-        let (refined, receipt) = architect.refine_plan_on_feedback(plan, "UNSAT: VRAM constraint exceeded");
+        let (refined, receipt) =
+            architect.refine_plan_on_feedback(plan, "UNSAT: VRAM constraint exceeded");
         assert!(receipt.adjusted);
         assert!(refined.estimated_monthly_cost_usd > 42.0);
     }
@@ -368,29 +495,90 @@ mod tests {
     fn test_classify_by_manifest_discovery() {
         let base_discovery = parsers::ManifestDiscovery::default();
 
-        // Manifest has pyproject.toml -> PythonVllmGpu
-        let mut py_disc = base_discovery.clone();
-        py_disc.has_pyproject_toml = true;
-        let c_py = WorkloadClassifier::classify(&py_disc, "backend_pipeline");
-        assert_eq!(c_py.workload_kind, WorkloadKind::PythonVllmGpu);
+        // 1. Python with GPU workload (vllm / gpu in name or torch/vllm dependencies)
+        let mut py_gpu_disc = base_discovery.clone();
+        py_gpu_disc.has_pyproject_toml = true;
+        let c_py_gpu = WorkloadClassifier::classify(&py_gpu_disc, "vllm_llm_pipeline_gpu");
+        assert_eq!(c_py_gpu.workload_kind, WorkloadKind::PythonVllmGpu);
 
-        // Manifest has go.mod -> GoWorker
+        // 2. Python with Web workload (fastapi / flask / webhook)
+        let mut py_web_disc = base_discovery.clone();
+        py_web_disc.has_pyproject_toml = true;
+        let c_py_web = WorkloadClassifier::classify(&py_web_disc, "fastapi_webhook_service");
+        assert_eq!(c_py_web.workload_kind, WorkloadKind::NodePostgresApi);
+
+        // 3. Python without GPU or Web dependencies -> GenericContainer (not blindly GPU!)
+        let mut py_generic_disc = base_discovery.clone();
+        py_generic_disc.has_pyproject_toml = true;
+        let c_py_gen = WorkloadClassifier::classify(&py_generic_disc, "backend_pipeline");
+        assert_eq!(c_py_gen.workload_kind, WorkloadKind::GenericContainer);
+
+        // 4. Manifest has go.mod -> GoWorker
         let mut go_disc = base_discovery.clone();
         go_disc.has_go_mod = true;
         let c_go = WorkloadClassifier::classify(&go_disc, "backend_pipeline");
         assert_eq!(c_go.workload_kind, WorkloadKind::GoWorker);
 
-        // Manifest has package.json -> NodePostgresApi
+        // 5. Manifest has package.json -> NodePostgresApi
         let mut node_disc = base_discovery.clone();
         node_disc.has_package_json = true;
         let c_node = WorkloadClassifier::classify(&node_disc, "backend_pipeline");
         assert_eq!(c_node.workload_kind, WorkloadKind::NodePostgresApi);
 
-        // Manifest has cargo.toml and wasm in name -> RustWasm
+        // 6. Manifest has cargo.toml and wasm in name -> RustWasm
         let mut rust_disc = base_discovery.clone();
         rust_disc.has_cargo_toml = true;
         let c_rust = WorkloadClassifier::classify(&rust_disc, "edge_wasm_filter");
         assert_eq!(c_rust.workload_kind, WorkloadKind::RustWasm);
+    }
+
+    #[test]
+    fn test_classify_python_and_go_manifest_dependencies_on_disk() {
+        // Test pyproject.toml with torch/vllm
+        let temp_gpu = TempTestDir::new("py-gpu");
+        std::fs::write(
+            temp_gpu.path.join("pyproject.toml"),
+            "[project]\nname = \"my-model\"\ndependencies = [\"vllm>=0.4\", \"torch\"]\n",
+        )
+        .unwrap();
+        let disc_gpu = ManifestParser::discover_in_dir(&temp_gpu.path);
+        let class_gpu = WorkloadClassifier::classify(&disc_gpu, &temp_gpu.path.to_string_lossy());
+        assert_eq!(class_gpu.workload_kind, WorkloadKind::PythonVllmGpu);
+
+        // Test pyproject.toml with fastapi
+        let temp_web = TempTestDir::new("py-web");
+        std::fs::write(
+            temp_web.path.join("pyproject.toml"),
+            "[project]\nname = \"my-api\"\ndependencies = [\"fastapi\", \"uvicorn\"]\n",
+        )
+        .unwrap();
+        let disc_web = ManifestParser::discover_in_dir(&temp_web.path);
+        let class_web = WorkloadClassifier::classify(&disc_web, &temp_web.path.to_string_lossy());
+        assert_eq!(class_web.workload_kind, WorkloadKind::NodePostgresApi);
+
+        // Test go.mod with gin web framework
+        let temp_go_web = TempTestDir::new("go-web");
+        std::fs::write(
+            temp_go_web.path.join("go.mod"),
+            "module my-web\ngo 1.22\nrequire github.com/gin-gonic/gin v1.9.1\n",
+        )
+        .unwrap();
+        let disc_go_web = ManifestParser::discover_in_dir(&temp_go_web.path);
+        let class_go_web =
+            WorkloadClassifier::classify(&disc_go_web, &temp_go_web.path.to_string_lossy());
+        assert_eq!(class_go_web.workload_kind, WorkloadKind::NodePostgresApi);
+
+        // Test go.mod with background worker
+        let temp_go_worker = TempTestDir::new("go-worker");
+        std::fs::write(
+            temp_go_worker.path.join("go.mod"),
+            "module my-worker\ngo 1.22\nrequire github.com/segmentio/kafka-go v0.4.47\n",
+        )
+        .unwrap();
+        let disc_go_worker = ManifestParser::discover_in_dir(&temp_go_worker.path);
+        let class_go_worker =
+            WorkloadClassifier::classify(&disc_go_worker, &temp_go_worker.path.to_string_lossy());
+        assert_eq!(class_go_worker.workload_kind, WorkloadKind::GoWorker);
     }
 
     #[test]
@@ -408,7 +596,11 @@ mod tests {
 
         for (dir_name, expected_kind) in test_cases {
             let fixture_path = fixtures.join(dir_name);
-            assert!(fixture_path.exists(), "Fixture path {:?} must exist", fixture_path);
+            assert!(
+                fixture_path.exists(),
+                "Fixture path {:?} must exist",
+                fixture_path
+            );
 
             let discovery = ManifestParser::discover_in_dir(&fixture_path);
             let classification = WorkloadClassifier::classify(&discovery, dir_name);
@@ -596,7 +788,10 @@ mod tests {
         assert_eq!(plans[2].provider, "AWS_ECS_FARGATE");
         assert!(plans[2].estimated_monthly_cost_usd > plans[1].estimated_monthly_cost_usd);
         assert_eq!(plans[2].nodes.len(), 2);
-        assert!(plans[2].nodes.iter().any(|n| n.role == "auto-scaling-workers"));
+        assert!(plans[2]
+            .nodes
+            .iter()
+            .any(|n| n.role == "auto-scaling-workers"));
         assert!(plans[2].nodes.iter().any(|n| n.role == "managed-queue"));
 
         // Cost monotonicity
@@ -624,7 +819,10 @@ mod tests {
         assert_eq!(plans[1].provider, "AWS_RDS");
         assert!(plans[1].estimated_monthly_cost_usd > 0.0);
         assert_eq!(plans[1].nodes.len(), 2);
-        assert!(plans[1].nodes.iter().any(|n| n.role == "managed-db-primary"));
+        assert!(plans[1]
+            .nodes
+            .iter()
+            .any(|n| n.role == "managed-db-primary"));
         assert!(plans[1].nodes.iter().any(|n| n.role == "read-replica"));
 
         // HighPerformance: Distributed GCP Spanner consensus cluster
@@ -632,7 +830,10 @@ mod tests {
         assert_eq!(plans[2].provider, "GCP_SPANNER");
         assert!(plans[2].estimated_monthly_cost_usd > plans[1].estimated_monthly_cost_usd);
         assert_eq!(plans[2].nodes.len(), 2);
-        assert!(plans[2].nodes.iter().any(|n| n.role == "distributed-consensus"));
+        assert!(plans[2]
+            .nodes
+            .iter()
+            .any(|n| n.role == "distributed-consensus"));
         assert!(plans[2].nodes.iter().any(|n| n.role == "consensus-witness"));
 
         // Cost monotonicity
@@ -666,8 +867,14 @@ mod tests {
         assert!(plans[2].estimated_monthly_cost_usd > plans[1].estimated_monthly_cost_usd);
         assert_eq!(plans[2].nodes.len(), 3);
         assert!(plans[2].nodes.iter().any(|n| n.role == "api-server-pool"));
-        assert!(plans[2].nodes.iter().any(|n| n.role == "azure-postgres-flexible"));
-        assert!(plans[2].nodes.iter().any(|n| n.role == "application-gateway-waf"));
+        assert!(plans[2]
+            .nodes
+            .iter()
+            .any(|n| n.role == "azure-postgres-flexible"));
+        assert!(plans[2]
+            .nodes
+            .iter()
+            .any(|n| n.role == "application-gateway-waf"));
 
         // Cost monotonicity
         assert!(plans[0].estimated_monthly_cost_usd < plans[1].estimated_monthly_cost_usd);
@@ -729,12 +936,16 @@ mod tests {
             assert!(
                 plans[0].estimated_monthly_cost_usd <= plans[1].estimated_monthly_cost_usd,
                 "Archetype {} Cheapest cost ({}) should be <= Balanced cost ({})",
-                dir_name, plans[0].estimated_monthly_cost_usd, plans[1].estimated_monthly_cost_usd
+                dir_name,
+                plans[0].estimated_monthly_cost_usd,
+                plans[1].estimated_monthly_cost_usd
             );
             assert!(
                 plans[1].estimated_monthly_cost_usd <= plans[2].estimated_monthly_cost_usd,
                 "Archetype {} Balanced cost ({}) should be <= HighPerformance cost ({})",
-                dir_name, plans[1].estimated_monthly_cost_usd, plans[2].estimated_monthly_cost_usd
+                dir_name,
+                plans[1].estimated_monthly_cost_usd,
+                plans[2].estimated_monthly_cost_usd
             );
 
             // Invariant 4: Non-negative costs
@@ -798,20 +1009,29 @@ mod tests {
         let plans = ArchitecturePlanner::generate_plans(&classification);
 
         // Roundtrip classification
-        let class_json = serde_json::to_string_pretty(&classification).expect("serialize classification");
-        let class_deser: classifier::ProjectClassification = serde_json::from_str(&class_json).expect("deserialize classification");
+        let class_json =
+            serde_json::to_string_pretty(&classification).expect("serialize classification");
+        let class_deser: classifier::ProjectClassification =
+            serde_json::from_str(&class_json).expect("deserialize classification");
         assert_eq!(class_deser.workload_kind, classification.workload_kind);
-        assert_eq!(class_deser.recommended_ram_mb, classification.recommended_ram_mb);
+        assert_eq!(
+            class_deser.recommended_ram_mb,
+            classification.recommended_ram_mb
+        );
 
         // Roundtrip plans
         let plans_json = serde_json::to_string_pretty(&plans).expect("serialize plans");
-        let plans_deser: Vec<planner::ArchitecturePlan> = serde_json::from_str(&plans_json).expect("deserialize plans");
+        let plans_deser: Vec<planner::ArchitecturePlan> =
+            serde_json::from_str(&plans_json).expect("deserialize plans");
         assert_eq!(plans_deser.len(), 3);
         assert_eq!(plans_deser[0].tier, PlanTier::Cheapest);
         assert_eq!(plans_deser[1].tier, PlanTier::Balanced);
         assert_eq!(plans_deser[2].tier, PlanTier::HighPerformance);
         assert_eq!(plans_deser[1].nodes.len(), plans[1].nodes.len());
-        assert_eq!(plans_deser[2].estimated_monthly_cost_usd, plans[2].estimated_monthly_cost_usd);
+        assert_eq!(
+            plans_deser[2].estimated_monthly_cost_usd,
+            plans[2].estimated_monthly_cost_usd
+        );
     }
 
     #[test]
@@ -830,15 +1050,23 @@ mod tests {
 
         for (dir_name, expected_token) in archetype_names {
             let classification = WorkloadClassifier::classify(&empty_discovery, dir_name);
-            let artifacts = MissingArtifactGenerator::generate_missing_artifacts(&classification, false);
+            let artifacts =
+                MissingArtifactGenerator::generate_missing_artifacts(&classification, false);
 
-            assert_eq!(artifacts.len(), 2, "Expected Dockerfile and docker-compose.yml for {}", dir_name);
+            assert_eq!(
+                artifacts.len(),
+                2,
+                "Expected Dockerfile and docker-compose.yml for {}",
+                dir_name
+            );
             assert_eq!(artifacts[0].file_path, "Dockerfile");
             assert_eq!(artifacts[0].artifact_type, "DOCKERFILE");
             assert!(
                 artifacts[0].content.contains(expected_token),
                 "Dockerfile for {} should contain '{}', got:\n{}",
-                dir_name, expected_token, artifacts[0].content
+                dir_name,
+                expected_token,
+                artifacts[0].content
             );
 
             assert_eq!(artifacts[1].file_path, "docker-compose.yml");
@@ -852,4 +1080,3 @@ mod tests {
         assert_eq!(artifacts[0].file_path, "docker-compose.yml");
     }
 }
-

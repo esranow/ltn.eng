@@ -1,2 +1,2 @@
 pub mod transaction;
-pub use transaction::{StateMachine, StateSnapshot};
+pub use transaction::{MutationRecord, MutationState, StateMachine, StateSnapshot};

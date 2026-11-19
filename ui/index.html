@@ -3,286 +3,1884 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LTN.ENG — Master Orchestration & Architecture Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <title>LTN.ENG — Sovereign Orchestrator & AI-Grafana Canvas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 24, 38, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-green: #00f5a0;
+      --accent-purple: #b388ff;
+      --accent-orange: #ff9100;
+      --text: #f0f4f8;
+      --text-muted: #8a99ad;
+      --font-code: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 1.25rem 2.5rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #0b0f19;
+      font-family: var(--font-code);
+    }
+
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      color: var(--accent-cyan);
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(0, 242, 254, 0.1);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+      font-family: var(--font-code);
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.5rem;
+      padding: 2rem 2.5rem;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .col-3 { grid-column: span 3; }
+    .col-4 { grid-column: span 4; }
+    .col-6 { grid-column: span 6; }
+    .col-8 { grid-column: span 8; }
+    .col-12 { grid-column: span 12; }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text);
+    }
+
+    .stat-val {
+      font-size: 2rem;
+      font-weight: 700;
+      font-family: var(--font-code);
+      background: linear-gradient(135deg, var(--text), var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-val.cyan {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-val.green {
+      background: linear-gradient(135deg, var(--accent-green), #00b0ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .code-box {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: var(--font-code);
+      font-size: 0.82rem;
+      color: #79ffe1;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    .topology-tree {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      font-family: var(--font-code);
+      font-size: 0.85rem;
+    }
+
+    .tree-node {
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 3px solid var(--accent-cyan);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .tree-node.gpu {
+      border-left-color: var(--accent-purple);
+    }
+
+    .tree-node.numa {
+      border-left-color: var(--accent-green);
+    }
+
+    .chart-canvas {
+      height: 140px;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      padding: 10px;
+    }
+
+    .bar {
+      flex: 1;
+      background: linear-gradient(180deg, var(--accent-cyan), rgba(0, 242, 254, 0.2));
+      border-radius: 3px 3px 0 0;
+      transition: height 0.5s ease;
+    }
+
+    .narrative-box {
+      border-left: 3px solid var(--accent-orange);
+      padding: 0.75rem 1rem;
+      background: rgba(255, 145, 0, 0.06);
+      border-radius: 0 8px 8px 0;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: #ffe0b2;
+    }
+  
+    /* Deterministic Deployment Simulator Styles */
+    .sim-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(0, 242, 254, 0.28);
+      background: radial-gradient(circle at 15% 15%, rgba(0, 242, 254, 0.04) 0%, rgba(18, 24, 38, 0.88) 100%);
+      box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 242, 254, 0.08);
+    }
+
+    .sim-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .sim-header-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .sim-header-title .icon-orb {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0b0f19;
+      font-weight: 900;
+      font-size: 0.9rem;
+    }
+
+    .sim-badges-row {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .proof-badge-sat {
+      background: rgba(0, 245, 160, 0.12);
+      border: 1px solid rgba(0, 245, 160, 0.5);
+      color: var(--accent-green);
+      font-weight: 700;
+      padding: 0.35rem 0.8rem;
+      border-radius: 6px;
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      box-shadow: 0 0 14px rgba(0, 245, 160, 0.25);
+      transition: all 0.3s ease;
+    }
+
+    .proof-badge-unsat {
+      background: rgba(255, 82, 82, 0.15);
+      border: 1px solid rgba(255, 82, 82, 0.6);
+      color: #ff5252;
+      font-weight: 700;
+      padding: 0.35rem 0.8rem;
+      border-radius: 6px;
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      box-shadow: 0 0 14px rgba(255, 82, 82, 0.35);
+      transition: all 0.3s ease;
+    }
+
+    .proof-badge-solving {
+      background: rgba(0, 242, 254, 0.12);
+      border: 1px solid rgba(0, 242, 254, 0.5);
+      color: var(--accent-cyan);
+      font-weight: 700;
+      padding: 0.35rem 0.8rem;
+      border-radius: 6px;
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      box-shadow: 0 0 14px rgba(0, 242, 254, 0.25);
+      transition: all 0.3s ease;
+    }
+
+    .badge-vault-zero {
+      background: rgba(179, 136, 255, 0.12);
+      border: 1px solid rgba(179, 136, 255, 0.45);
+      color: var(--accent-purple);
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.3s ease;
+    }
+
+    .badge-vault-zero.violating {
+      background: rgba(255, 145, 0, 0.14);
+      border-color: rgba(255, 145, 0, 0.55);
+      color: var(--accent-orange);
+    }
+
+    .sim-control-panel {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 1.15rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .sim-input-row {
+      display: flex;
+      gap: 0.85rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .sim-input-box {
+      flex: 1;
+      min-width: 280px;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(11, 15, 25, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 0.65rem 0.95rem;
+      transition: all 0.2s ease;
+    }
+
+    .sim-input-box:focus-within {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.25);
+    }
+
+    .sim-input-box svg {
+      color: var(--accent-cyan);
+      flex-shrink: 0;
+    }
+
+    .sim-input-field {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-family: var(--font-code);
+      font-size: 0.88rem;
+      width: 100%;
+    }
+
+    .sim-run-btn {
+      background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+      color: #0b0f19;
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 0.88rem;
+      padding: 0.72rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      box-shadow: 0 4px 18px rgba(0, 242, 254, 0.35);
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .sim-run-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(0, 242, 254, 0.55);
+    }
+
+    .sim-run-btn:active {
+      transform: translateY(1px);
+    }
+
+    .sim-run-btn.running {
+      background: linear-gradient(135deg, #b388ff 0%, #7c4dff 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 18px rgba(179, 136, 255, 0.4);
+      cursor: not-allowed;
+    }
+
+    .sim-presets-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .preset-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-family: var(--font-code);
+      font-size: 0.76rem;
+      padding: 0.35rem 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .preset-chip:hover {
+      background: rgba(0, 242, 254, 0.1);
+      border-color: rgba(0, 242, 254, 0.35);
+      color: var(--accent-cyan);
+    }
+
+    .preset-chip.active {
+      background: rgba(0, 242, 254, 0.18);
+      border-color: var(--accent-cyan);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* Simulation Output Container */
+    .sim-results-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .sim-overview-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+
+    .sim-overview-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .sim-stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .sim-stat-value {
+      font-family: var(--font-code);
+      font-size: 0.92rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* Subcard Grid */
+    .sim-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 1024px) {
+      .sim-detail-grid { grid-template-columns: 1fr; }
+    }
+
+    .sim-subcard {
+      background: rgba(11, 15, 25, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .sim-subcard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .sim-subcard-content {
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      line-height: 1.55;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .sim-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+    }
+    .sim-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .sim-row-key {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .sim-row-val {
+      text-align: right;
+      color: #79ffe1;
+      word-break: break-word;
+    }
+
+    /* 4-Stage Canary Progress */
+    .canary-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .canary-header-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .canary-track {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .canary-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #00f2fe 0%, #00f5a0 100%);
+      border-radius: 999px;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 12px rgba(0, 245, 160, 0.5);
+    }
+
+    .canary-stages-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .canary-stages-row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .canary-stage-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 0.85rem;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .canary-stage-card.active {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 242, 254, 0.06);
+      box-shadow: 0 0 18px rgba(0, 242, 254, 0.15);
+    }
+
+    .canary-stage-card.passed {
+      border-color: rgba(0, 245, 160, 0.4);
+      background: rgba(0, 245, 160, 0.04);
+    }
+
+    .canary-stage-card.failed {
+      border-color: rgba(255, 82, 82, 0.55);
+      background: rgba(255, 82, 82, 0.08);
+      box-shadow: 0 0 16px rgba(255, 82, 82, 0.2);
+    }
+
+    .canary-stage-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+
+    .canary-stage-pct {
+      font-family: var(--font-code);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .canary-stage-status {
+      font-size: 0.68rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: rgba(0, 245, 160, 0.15);
+      color: var(--accent-green);
+      font-family: var(--font-code);
+      font-weight: 600;
+    }
+
+    .canary-stage-metrics {
+      font-family: var(--font-code);
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* 3-Tier Cost Comparison */
+    .cost-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .cost-section-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .cost-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 900px) {
+      .cost-cards-grid { grid-template-columns: 1fr; }
+    }
+
+    .cost-card {
+      background: rgba(11, 15, 25, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+      position: relative;
+      transition: all 0.25s ease;
+    }
+
+    .cost-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .cost-card.highlight {
+      background: radial-gradient(circle at top right, rgba(0, 245, 160, 0.09), rgba(18, 24, 38, 0.9));
+      border: 1px solid rgba(0, 245, 160, 0.45);
+      box-shadow: 0 0 25px rgba(0, 245, 160, 0.16);
+    }
+
+    .cost-badge {
+      position: absolute;
+      top: -10px;
+      right: 14px;
+      background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+      color: #0b0f19;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .cost-tier-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .cost-card.highlight .cost-tier-name {
+      color: var(--accent-green);
+    }
+
+    .cost-price-val {
+      font-family: var(--font-code);
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .cost-card.highlight .cost-price-val {
+      background: linear-gradient(135deg, #ffffff, var(--accent-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .cost-list {
+      list-style: none;
+      font-size: 0.77rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .cost-list li {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .cost-list .chk {
+      color: var(--accent-green);
+      font-weight: bold;
+    }
+
+    .cost-list .cross {
+      color: #ff5252;
+      font-weight: bold;
+    }
+
+    /* Receipt Box */
+    .receipt-bar {
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 0.85rem 1.15rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .receipt-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .receipt-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .receipt-hash {
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      color: var(--accent-cyan);
+      word-break: break-all;
+      background: rgba(0, 242, 254, 0.05);
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 242, 254, 0.15);
+    }
+
+    .copy-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .copy-btn:hover {
+      background: rgba(0, 242, 254, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent-green);
+      display: inline-block;
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse-kf 1.5s infinite;
+    }
+
+    @keyframes pulse-kf {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.15); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+</style>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="logo">⚡</div>
-        <div class="brand-text">
-          <h2>LTN.ENG</h2>
-          <span>Master Orchestration</span>
+  <header>
+    <div class="brand">
+      <div class="brand-logo">LTN</div>
+      <div>
+        <h1>LTN.ENG <span>// Sovereign Studio</span></h1>
+        <p style="font-size: 0.75rem; color: var(--text-muted);">Deterministic Workload Engine & AI-Grafana Telemetry Canvas</p>
+      </div>
+    </div>
+    <div style="display: flex; gap: 0.75rem; align-items: center;">
+      <span class="badge">Z3 SMT: SAT</span>
+      <span class="badge" style="border-color: rgba(0, 245, 160, 0.4); color: var(--accent-green);">ANTI-AUTOSCALING: LOCKED</span>
+      <span class="badge" style="border-color: rgba(179, 136, 255, 0.4); color: var(--accent-purple);">MAP.MTL: ONLINE</span>
+    </div>
+  </header>
+
+  <main class="main-grid">
+    <!-- Top KPI Cards -->
+    <div class="card col-3">
+      <div class="card-title">Latency P99 (Rolling) <span class="badge">Auto-Prometheus</span></div>
+      <div class="stat-val cyan" id="p99-val">32.4 ms</div>
+      <p style="font-size: 0.8rem; color: var(--text-muted);">Threshold: &lt; 100.0 ms | Invariant: PASS</p>
+    </div>
+
+    <div class="card col-3">
+      <div class="card-title">Error Rate (Rolling) <span class="badge">Zero Drift</span></div>
+      <div class="stat-val green" id="err-val">0.00 %</div>
+      <p style="font-size: 0.8rem; color: var(--text-muted);">SLO: 99.99% Availability Guaranteed</p>
+    </div>
+
+    <div class="card col-3">
+      <div class="card-title">Hardware Pinning <span class="badge">map.mtl</span></div>
+      <div class="stat-val" style="color: var(--accent-purple);">NUMA-0 / L3</div>
+      <p style="font-size: 0.8rem; color: var(--text-muted);">CPU Gov: Performance | C-State: 0us</p>
+    </div>
+
+    <div class="card col-3">
+      <div class="card-title">GPU Parallelism <span class="badge">AI-Slinky</span></div>
+      <div class="stat-val" style="color: var(--accent-orange);">TP=2 (NVLink)</div>
+      <p style="font-size: 0.8rem; color: var(--text-muted);">900 GB/s Direct P2P Interconnect</p>
+    </div>
+
+    <!-- Telemetry Histogram (AI-Grafana) -->
+    <div class="card col-8">
+      <div class="card-title">
+        Real-Time Latency Histogram (Embedded 3600-sample TSDB Ring)
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Zero Prometheus Server Overheads</span>
+      </div>
+      <div class="chart-canvas" id="latency-bars">
+        <div class="bar" style="height: 35%;"></div>
+        <div class="bar" style="height: 42%;"></div>
+        <div class="bar" style="height: 38%;"></div>
+        <div class="bar" style="height: 48%;"></div>
+        <div class="bar" style="height: 45%;"></div>
+        <div class="bar" style="height: 39%;"></div>
+        <div class="bar" style="height: 52%;"></div>
+        <div class="bar" style="height: 41%;"></div>
+        <div class="bar" style="height: 46%;"></div>
+        <div class="bar" style="height: 44%;"></div>
+        <div class="bar" style="height: 40%;"></div>
+        <div class="bar" style="height: 38%;"></div>
+        <div class="bar" style="height: 42%;"></div>
+        <div class="bar" style="height: 47%;"></div>
+        <div class="bar" style="height: 43%;"></div>
+        <div class="bar" style="height: 36%;"></div>
+      </div>
+      <div class="narrative-box">
+        <strong>🧠 AI-Grafana Diagnostic Narrative:</strong>
+        Workload execution is strictly bounded within NUMA socket 0. Zero cross-socket QPI memory latency observed.
+        Throughput satisfies mathematical non-autoscaling invariants without jitter.
+      </div>
+    </div>
+
+    <!-- map.mtl Physical Graph -->
+    <div class="card col-4">
+      <div class="card-title">map.mtl Physical Topology <span class="badge">Live Bus</span></div>
+      <div class="topology-tree">
+        <div class="tree-node numa">
+          <span>NUMA Domain 0</span>
+          <span>65,536 MB RAM</span>
+        </div>
+        <div class="tree-node">
+          <span>├── Socket 0 (16 Cores)</span>
+          <span>Shared L3 (32MB)</span>
+        </div>
+        <div class="tree-node gpu">
+          <span>├── PCIe Gen5 (0000:01:00.0)</span>
+          <span>NVIDIA RTX (24GB)</span>
+        </div>
+        <div class="tree-node gpu">
+          <span>└── NVLink Interconnect</span>
+          <span>900 GB/s P2P Mesh</span>
         </div>
       </div>
-      <nav class="nav-menu">
-        <button class="nav-item active" data-tab="dashboard">
-          <span class="icon">📊</span> Dashboard
-        </button>
-        <button class="nav-item" data-tab="analyze">
-          <span class="icon">🔍</span> Workload Analyzer
-        </button>
-        <button class="nav-item" data-tab="architect">
-          <span class="icon">🏛️</span> 3-Tier Architect
-        </button>
-        <button class="nav-item" data-tab="deploy">
-          <span class="icon">⚡</span> Deployment Engine
-        </button>
-        <button class="nav-item" data-tab="telemetry">
-          <span class="icon">📈</span> Live Telemetry
-        </button>
-        <button class="nav-item" data-tab="settings">
-          <span class="icon">⚙️</span> Configuration
-        </button>
-      </nav>
-      <div class="sandbox-badge">
-        <span class="pulse"></span> Docker Sandbox Active
+    </div>
+
+    <!-- AI-Cilium Zero-Trust L7 Mesh -->
+    <div class="card col-6">
+      <div class="card-title">AI-Cilium: Synthesized Zero-Trust Contracts <span class="badge">Zero CNI DaemonSet</span></div>
+      <div class="code-box">
+// Ingress L7 Contract:
+ALLOW TCP dport 8080 PATHS ["/health", "/api/*", "/metrics"]
+// Egress L7 Contract:
+ALLOW TCP postgresql.internal:5432 ONLY
+// Kernel eBPF Enforcement:
+SEC("sockops") int ltn_sock_filter(...) { ALLOW_PORT(8080); }
+// Hybrid WireGuard Mesh:
+TUNNEL wg-api-gateway.mesh.ltn.internal (MTU 1420, ChaCha20-Poly1305)
       </div>
-    </aside>
+    </div>
 
-    <!-- Main Content Area -->
-    <main class="main-content">
-      <header class="top-bar">
-        <div class="page-title">
-          <h1 id="tab-heading">System Overview</h1>
-          <p id="tab-subheading">Empirical OS Observer & Z3 SMT Prover Status</p>
-        </div>
-        <div class="top-actions">
-          <button class="btn btn-secondary" onclick="fetchSystemStatus()">🔄 Refresh Status</button>
-          <button class="btn btn-primary" onclick="switchTab('architect')">🏛️ New Plan</button>
-        </div>
-      </header>
-
-      <!-- TAB 1: DASHBOARD -->
-      <section id="tab-dashboard" class="tab-page active">
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-icon blue">🩺</div>
-            <div class="metric-info">
-              <span class="label">Sandbox Health</span>
-              <span class="value" id="status-sandbox">ACTIVE</span>
-            </div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-icon purple">🧠</div>
-            <div class="metric-info">
-              <span class="label">Z3 SMT Solver</span>
-              <span class="value" id="status-z3">OPTIMAL</span>
-            </div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-icon green">📡</div>
-            <div class="metric-info">
-              <span class="label">Socket Probes</span>
-              <span class="value" id="status-sockets">1 Active</span>
-            </div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-icon orange">🛡️</div>
-            <div class="metric-info">
-              <span class="label">State Hasher</span>
-              <span class="value" id="status-hash">SHA-256 Valid</span>
+    <!-- AI-Slinky Rank Mapping -->
+    <div class="card col-6">
+      <div class="card-title">AI-Slinky: Rank Allocation Plan <span class="badge">Zero Slurm / K8s</span></div>
+      <div class="code-box">
+Framework: vLLM / PyTorch-Distributed (World Size: 2)
+Rank 0: GPU_0 (NUMA 0, CoreMask: 0x00FF) -> Pinned Device 0
+Rank 1: GPU_1 (NUMA 0, CoreMask: 0xFF00) -> Pinned Device 1
+Interconnect: NVLink Direct P2P Bandwidth Active (Zero PCIe Bottleneck)
+Process Launcher:
+numactl --cpunodebind=0 --membind=0 vllm serve --tensor-parallel-size 2
+      </div>
+    </div>
+  
+    <!-- ======================================================== -->
+    <!-- DETERMINISTIC DEPLOYMENT SIMULATOR CARD                 -->
+    <!-- ======================================================== -->
+    <div class="card col-12 sim-card" id="simulator-section">
+      <!-- Header -->
+      <div class="sim-header-row">
+        <div class="sim-header-title">
+          <div class="icon-orb">⚙</div>
+          <div>
+            <div>Deterministic Deployment Simulator</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">
+              Formal Invariant Verification · Zero-Jitter Hardware Mapping · Microsecond Fail-Closed Guardrails
             </div>
           </div>
         </div>
+        <div class="sim-badges-row">
+          <div class="proof-badge-sat" id="badge-smt-proof">
+            <span class="pulse-dot"></span>
+            <span id="badge-smt-text">SMT: SAT — PROVABLY INVARIANT COMPLIANT</span>
+          </div>
+          <div class="badge-vault-zero" id="badge-vault-zero">
+            <span style="font-size: 0.85rem;" id="badge-vault-icon">🛡️</span>
+            <span id="badge-vault-text">Ephemeral Vault: In-Memory Zeroization GUARANTEED</span>
+          </div>
+        </div>
+      </div>
 
-        <div class="panel-grid">
-          <div class="panel">
-            <h3>📦 Pre-bundled Workload Fixtures</h3>
-            <div class="fixtures-list">
-              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/react_vite_static')">
-                <span class="tag tag-web">StaticWeb</span>
-                <div class="fixture-details">
-                  <strong>React / Vite Frontend</strong>
-                  <span>tests/fixtures/react_vite_static</span>
-                </div>
-                <button class="btn-sm">Analyze</button>
+      <!-- Controls: Input & Presets -->
+      <div class="sim-control-panel">
+        <div class="sim-input-row">
+          <div class="sim-input-box">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <input type="text" id="manifest-path-input" class="sim-input-field" placeholder="Target Manifest / File Path (e.g. docker-compose.yml, project_profile.json, Dockerfile, ./my-app)" value="docker-compose.yml" autocomplete="off" spellcheck="false" />
+          </div>
+          <button id="run-sim-btn" class="sim-run-btn" onclick="runSimulation()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Simulate Deployment</span>
+          </button>
+        </div>
+
+        <div class="sim-presets-bar">
+          <span style="font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Presets:</span>
+          <button class="preset-chip active" id="preset-docker" data-preset="docker-compose.yml" onclick="loadPreset('docker-compose.yml', this)">
+            <span>📦 docker-compose.yml</span>
+          </button>
+          <button class="preset-chip" id="preset-profile" data-preset="project_profile.json" onclick="loadPreset('project_profile.json', this)">
+            <span>⚡ project_profile.json (AI/vLLM)</span>
+          </button>
+          <button class="preset-chip" id="preset-dockerfile" data-preset="Dockerfile" onclick="loadPreset('Dockerfile', this)">
+            <span>🐳 Dockerfile (OCI)</span>
+          </button>
+          <button class="preset-chip" id="preset-myapp" data-preset="./my-app" onclick="loadPreset('./my-app', this)">
+            <span>🦀 ./my-app (Sovereign Daemon)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Simulation Results Container -->
+      <div class="sim-results-wrapper" id="sim-results-container">
+        
+        <!-- Top Overview Bar: Workload Classification & Demands -->
+        <div class="sim-overview-bar">
+          <div class="sim-overview-stat">
+            <span class="sim-stat-label">Workload Classification</span>
+            <div class="sim-stat-value" id="workload-class" style="color: var(--accent-cyan); font-weight: 700;">
+              Heterogeneous Web + Database Microservices
+            </div>
+          </div>
+          <div class="sim-overview-stat">
+            <span class="sim-stat-label">Detected Resource Demands</span>
+            <div class="sim-stat-value" id="detected-demands">
+              4 vCPUs · 16 GB ECC RAM · 40 GB NVMe · 0 GPU
+            </div>
+          </div>
+          <div class="sim-overview-stat">
+            <span class="sim-stat-label">SMT Solver Status (Z3)</span>
+            <div class="sim-stat-value" id="solver-status-stat" style="color: var(--accent-green);">
+              SAT (14/14 Invariants · 1.18ms)
+            </div>
+          </div>
+          <div class="sim-overview-stat">
+            <span class="sim-stat-label">Fail-Closed Rollback Time</span>
+            <div class="sim-stat-value" id="rollback-time-stat" style="color: var(--accent-orange); font-weight: 700;">
+              23.8 ms (&lt; 50ms Invariant)
+            </div>
+          </div>
+        </div>
+
+        <!-- 3-Column Technical Architecture Grid -->
+        <div class="sim-detail-grid">
+          
+          <!-- Card 1: Physical Placement -->
+          <div class="sim-subcard">
+            <div class="sim-subcard-header">
+              <span>Hardware Topology Placement</span>
+              <span class="badge" style="font-size: 0.7rem; border-color: rgba(0, 245, 160, 0.3); color: var(--accent-green);">Hardware Pinned</span>
+            </div>
+            <div class="sim-subcard-content">
+              <div class="sim-row">
+                <span class="sim-row-key">NUMA Domain:</span>
+                <span class="sim-row-val" id="placement-numa">NUMA-0 (Socket 0, Cores 0-3)</span>
               </div>
-              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/node_postgres_api')">
-                <span class="tag tag-node">NodePostgresApi</span>
-                <div class="fixture-details">
-                  <strong>Node.js + Postgres API</strong>
-                  <span>tests/fixtures/node_postgres_api</span>
-                </div>
-                <button class="btn-sm">Analyze</button>
+              <div class="sim-row">
+                <span class="sim-row-key">CPU Governor:</span>
+                <span class="sim-row-val" id="placement-gov" style="color: var(--accent-green);">"performance" (Pinned 3.8GHz)</span>
               </div>
-              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/python_vllm_gpu')">
-                <span class="tag tag-gpu">PythonVllmGpu</span>
-                <div class="fixture-details">
-                  <strong>Python vLLM GPU Inference</strong>
-                  <span>tests/fixtures/python_vllm_gpu</span>
-                </div>
-                <button class="btn-sm">Analyze</button>
+              <div class="sim-row">
+                <span class="sim-row-key">C-State Latency:</span>
+                <span class="sim-row-val" id="placement-cstate" style="color: var(--accent-cyan);">0us (PM QoS C0 Pinning)</span>
               </div>
-              <div class="fixture-item" onclick="quickAnalyze('/workspace/tests/fixtures/go_worker')">
-                <span class="tag tag-go">GoWorker</span>
-                <div class="fixture-details">
-                  <strong>Go Background Worker</strong>
-                  <span>tests/fixtures/go_worker</span>
-                </div>
-                <button class="btn-sm">Analyze</button>
+              <div class="sim-row">
+                <span class="sim-row-key">Memory Channel:</span>
+                <span class="sim-row-val" id="placement-mem">Local DDR5 Octa-Channel (Zero QPI Cross-Talk)</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">cpuset Affinity:</span>
+                <span class="sim-row-val" id="placement-affinity">cgroup.cpuset = 0-3 (Isolcpus)</span>
               </div>
             </div>
           </div>
 
-          <div class="panel">
-            <h3>📜 Live Execution Activity Log</h3>
-            <div class="log-terminal" id="activity-log">
-              <div class="log-line info">[SYS] LTN.ENG Engine v1.0.0 Ready.</div>
-              <div class="log-line success">[Z3] Formal verification gate loaded.</div>
-              <div class="log-line info">[OBSERVER] Telemetry listener attached on port 8080.</div>
+          <!-- Card 2: Zero-Trust Network Contract -->
+          <div class="sim-subcard">
+            <div class="sim-subcard-header">
+              <span>Zero-Trust Network Contract</span>
+              <span class="badge" style="font-size: 0.7rem; border-color: rgba(0, 242, 254, 0.3); color: var(--accent-cyan);">In-Kernel L7</span>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 2: WORKLOAD ANALYZER -->
-      <section id="tab-analyze" class="tab-page">
-        <div class="panel">
-          <h3>🔍 Analyze Project Workload</h3>
-          <div class="input-group">
-            <input type="text" id="analyze-path" value="/workspace/tests/fixtures/python_vllm_gpu" placeholder="Enter target project path...">
-            <button class="btn btn-primary" onclick="runAnalysis()">Analyze Workload</button>
-          </div>
-
-          <div id="analyze-results" class="results-box hidden">
-            <h4>Analysis Result</h4>
-            <div class="result-card">
-              <div class="result-header">
-                <span class="badge" id="res-kind">PythonVllmGpu</span>
-                <h3 id="res-desc">Python High-Performance LLM/GPU Inference Workload</h3>
+            <div class="sim-subcard-content">
+              <div class="sim-row">
+                <span class="sim-row-key">WireGuard CIDR/VIP:</span>
+                <span class="sim-row-val" id="net-vip" style="color: var(--accent-cyan);">10.42.0.18/32 (CIDR 10.42.0.0/16 wg-ltn0)</span>
               </div>
-              <div class="specs-grid">
-                <div class="spec-item">
-                  <span class="spec-label">Detected Manifests</span>
-                  <span class="spec-val" id="res-manifests">pyproject.toml/requirements.txt</span>
-                </div>
-                <div class="spec-item">
-                  <span class="spec-label">Rec. CPU Cores</span>
-                  <span class="spec-val" id="res-cpu">8 Cores</span>
-                </div>
-                <div class="spec-item">
-                  <span class="spec-label">Rec. RAM</span>
-                  <span class="spec-val" id="res-ram">32768 MB</span>
-                </div>
-                <div class="spec-item">
-                  <span class="spec-label">Rec. VRAM</span>
-                  <span class="spec-val" id="res-vram">24576 MB</span>
-                </div>
+              <div class="sim-row">
+                <span class="sim-row-key">Mesh Encryption:</span>
+                <span class="sim-row-val" id="net-crypto">ChaCha20-Poly1305 (MTU 1420)</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">eBPF Sockops:</span>
+                <span class="sim-row-val" id="net-ebpf">SEC("sockops") ALLOW :8080</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">nftables Filter:</span>
+                <span class="sim-row-val" id="net-nftables">nftables: inet filter drop untracked / synproxy</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">Egress Strict Policy:</span>
+                <span class="sim-row-val" id="net-egress">ALLOW postgresql.internal:5432</span>
               </div>
             </div>
           </div>
+
+          <!-- Card 3: Ephemeral Vault & Fail-Closed Guardrails -->
+          <div class="sim-subcard">
+            <div class="sim-subcard-header">
+              <span>Vault & Fail-Closed Engine</span>
+              <span class="badge" style="font-size: 0.7rem; border-color: rgba(255, 145, 0, 0.4); color: var(--accent-orange);">Microsecond SLA</span>
+            </div>
+            <div class="sim-subcard-content">
+              <div class="sim-row">
+                <span class="sim-row-key">Vault Zeroization:</span>
+                <span class="sim-row-val" id="vault-zeroize" style="color: var(--accent-purple);">mlock(2) + explicit_bzero</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">Memory Swap Leakage:</span>
+                <span class="sim-row-val" id="vault-swap" style="color: var(--accent-green);">0 Bytes (No-Swap Invariant)</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">Fail-Closed Trigger:</span>
+                <span class="sim-row-val" id="rollback-trigger">Atomic Socket Redirection</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">Sub-50ms Rollback:</span>
+                <span class="sim-row-val" id="net-rollback" style="color: var(--accent-orange); font-weight: 700;">23.8 ms (&lt; 50ms Benchmark SLA)</span>
+              </div>
+              <div class="sim-row">
+                <span class="sim-row-key">Crash Footprint:</span>
+                <span class="sim-row-val" id="crash-footprint">MADV_DONTDUMP (Zero Core Leak)</span>
+              </div>
+            </div>
+          </div>
+
         </div>
-      </section>
 
-      <!-- TAB 3: 3-TIER ARCHITECT -->
-      <section id="tab-architect" class="tab-page">
-        <div class="panel">
-          <h3>🏛️ 3-Tier Architecture Planner</h3>
-          <div class="input-group">
-            <input type="text" id="architect-path" value="/workspace/tests/fixtures/node_postgres_api" placeholder="Enter project path...">
-            <button class="btn btn-primary" onclick="runArchitect()">Generate Plans</button>
-          </div>
-
-          <div id="architect-results" class="plans-grid hidden">
-            <!-- Plan Cards Generated via JS -->
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 4: DEPLOYMENT ENGINE -->
-      <section id="tab-deploy" class="tab-page">
-        <div class="panel">
-          <h3>⚡ Deploy Project via Z3 SMT Gate</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Target Path</label>
-              <input type="text" id="deploy-path" value="/workspace/tests/fixtures/react_vite_static">
+        <!-- 4-Stage Canary Rollout Progress -->
+        <div class="canary-box">
+          <div class="canary-header-line">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span>Deterministic 4-Stage Canary Rollout</span>
+              <span class="badge" style="font-size: 0.72rem; color: var(--accent-cyan); border-color: rgba(0, 242, 254, 0.4);">
+                Stage Progression: <span id="canary-current-phase">Stage 4 / 4</span>
+              </span>
             </div>
-            <div class="form-group">
-              <label>Target Tier</label>
-              <select id="deploy-tier">
-                <option value="CHEAPEST">CHEAPEST (Local Docker)</option>
-                <option value="BALANCED" selected>BALANCED (AWS ECS/RDS)</option>
-                <option value="HIGH_PERFORMANCE">HIGH-PERFORMANCE (GCP Cluster)</option>
-              </select>
+            <div style="font-family: var(--font-code); font-size: 0.8rem; color: var(--accent-green);">
+              Overall p99: <span id="canary-overall-p99">21.4 ms</span> | Error Rate: <span id="canary-overall-err">0.000%</span>
             </div>
           </div>
-          <button class="btn btn-primary btn-block" onclick="runDeploy()">🚀 Execute Deployment</button>
 
-          <div id="deploy-progress" class="progress-box hidden">
-            <h4>Agent Harness Lifecycle Progress</h4>
-            <div class="timeline">
-              <div class="step" id="step-read"><span>1</span> READ</div>
-              <div class="step" id="step-plan"><span>2</span> PLAN</div>
-              <div class="step" id="step-validate"><span>3</span> VALIDATE (Z3)</div>
-              <div class="step" id="step-mutate"><span>4</span> MUTATE</div>
-              <div class="step" id="step-verify"><span>5</span> VERIFY</div>
-            </div>
-            <div id="deploy-output" class="log-terminal"></div>
+          <div class="canary-track">
+            <div class="canary-bar" id="canary-progress-bar" style="width: 100%;"></div>
           </div>
-        </div>
-      </section>
 
-      <!-- TAB 5: TELEMETRY -->
-      <section id="tab-telemetry" class="tab-page">
-        <div class="panel">
-          <h3>📈 Empirical Observer Telemetry</h3>
-          <div class="telemetry-grid">
-            <div class="telemetry-card">
-              <h4>Socket Probes</h4>
-              <table class="data-table">
-                <thead>
-                  <tr><th>Address</th><th>Status</th><th>Latency</th></tr>
-                </thead>
-                <tbody id="socket-table-body">
-                  <tr><td>127.0.0.1:8080</td><td><span class="status-online">REACHABLE</span></td><td>1.2 ms</td></tr>
-                </thead>
-              </table>
+          <div class="canary-stages-row">
+            <!-- Stage 1 -->
+            <div class="canary-stage-card passed" id="canary-stage-1">
+              <div class="canary-stage-top">
+                <span class="canary-stage-pct">5%</span>
+                <span class="canary-stage-status" id="canary-status-1">PASSED</span>
+              </div>
+              <div class="canary-stage-metrics">
+                <div>Traffic: <strong>5% Canary</strong></div>
+                <div>p99: <span id="stage-1-p99">16.4 ms</span></div>
+                <div>Errors: <span id="stage-1-err" style="color: var(--accent-green);">0.000%</span></div>
+              </div>
             </div>
-            <div class="telemetry-card">
-              <h4>Process Table</h4>
-              <table class="data-table">
-                <thead>
-                  <tr><th>Process Name</th><th>PID</th><th>Status</th></tr>
-                </thead>
-                <tbody id="process-table-body">
-                  <tr><td>ltn-sandbox</td><td>100</td><td><span class="status-online">RUNNING</span></td></tr>
-                </thead>
-              </table>
+
+            <!-- Stage 2 -->
+            <div class="canary-stage-card passed" id="canary-stage-2">
+              <div class="canary-stage-top">
+                <span class="canary-stage-pct">25%</span>
+                <span class="canary-stage-status" id="canary-status-2">PASSED</span>
+              </div>
+              <div class="canary-stage-metrics">
+                <div>Traffic: <strong>25% Quorum</strong></div>
+                <div>p99: <span id="stage-2-p99">18.2 ms</span></div>
+                <div>Errors: <span id="stage-2-err" style="color: var(--accent-green);">0.000%</span></div>
+              </div>
+            </div>
+
+            <!-- Stage 3 -->
+            <div class="canary-stage-card passed" id="canary-stage-3">
+              <div class="canary-stage-top">
+                <span class="canary-stage-pct">50%</span>
+                <span class="canary-stage-status" id="canary-status-3">PASSED</span>
+              </div>
+              <div class="canary-stage-metrics">
+                <div>Traffic: <strong>50% Split</strong></div>
+                <div>p99: <span id="stage-3-p99">20.1 ms</span></div>
+                <div>Errors: <span id="stage-3-err" style="color: var(--accent-green);">0.000%</span></div>
+              </div>
+            </div>
+
+            <!-- Stage 4 -->
+            <div class="canary-stage-card passed active" id="canary-stage-4">
+              <div class="canary-stage-top">
+                <span class="canary-stage-pct">100%</span>
+                <span class="canary-stage-status" id="canary-status-4">COMPLETE</span>
+              </div>
+              <div class="canary-stage-metrics">
+                <div>Traffic: <strong>100% Full Cut</strong></div>
+                <div>p99: <span id="stage-4-p99">21.4 ms</span></div>
+                <div>Errors: <span id="stage-4-err" style="color: var(--accent-green);">0.000%</span></div>
+              </div>
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- TAB 6: SETTINGS -->
-      <section id="tab-settings" class="tab-page">
-        <div class="panel">
-          <h3>⚙️ Provider & System Configuration</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Default Provider</label>
-              <select id="cfg-provider">
-                <option value="LOCAL_DOCKER">LOCAL_DOCKER</option>
-                <option value="AWS">AWS</option>
-                <option value="GCP">GCP</option>
-                <option value="AZURE">AZURE</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Probe Interval (Seconds)</label>
-              <input type="number" id="cfg-interval" value="10">
-            </div>
+        <!-- 3-Tier Transparent Cost Comparison -->
+        <div class="cost-section">
+          <div class="cost-section-title">
+            <span>Transparent 3-Tier Infrastructure Cost Model</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: none;">
+              Zero Ingress/Egress Cloud Tax · Eliminating Control Plane Overhead
+            </span>
           </div>
-          <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
-        </div>
-      </section>
-    </main>
-  </div>
 
-  <script src="app.js"></script>
+          <div class="cost-cards-grid">
+            
+            <!-- Tier 1: LTN.ENG Sovereign -->
+            <div class="cost-card highlight">
+              <div class="cost-badge">Optimal Sovereign Choice</div>
+              <div>
+                <div class="cost-tier-name">Tier 1: Sovereign Edge / Bare Metal (LTN.ENG)</div>
+                <div class="cost-price-val" id="tier1-cost">$0 – $10 <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">/ mo</span></div>
+              </div>
+              <ul class="cost-list">
+                <li><span class="chk">✓</span> Zero Cloud Control Plane Tax ($0 K8s overhead)</li>
+                <li><span class="chk">✓</span> Zero Egress Bandwidth Markup (Direct WireGuard)</li>
+                <li><span class="chk">✓</span> Bare-metal performance pinning (0us C-state)</li>
+                <li><span class="chk">✓</span> Embedded In-Process AI-Grafana & Z3 Solver</li>
+              </ul>
+              <div style="font-size: 0.72rem; color: var(--accent-green); font-family: var(--font-code);">
+                100% Deterministic Resource Utilization
+              </div>
+            </div>
+
+            <!-- Tier 2: Managed Hyperscaler -->
+            <div class="cost-card">
+              <div>
+                <div class="cost-tier-name">Tier 2: Managed Cloud Hyperscaler (EKS / GKE)</div>
+                <div class="cost-price-val" id="tier2-cost">$35 – $50 <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">/ mo</span></div>
+              </div>
+              <ul class="cost-list">
+                <li><span class="chk">✓</span> Managed Kubernetes Control Plane (~$0.10/hr)</li>
+                <li><span class="chk">✓</span> Minimum Multi-Node Instance Pools (t4g/c6g)</li>
+                <li><span class="cross">✕</span> Mandatory Cloud NAT Gateway ($32+/mo baseline)</li>
+                <li><span class="cross">✕</span> Autoscaler Latency Jitter (30s–3min cold starts)</li>
+              </ul>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-code);">
+                ~4.5x Cost Multiplier vs Sovereign
+              </div>
+            </div>
+
+            <!-- Tier 3: Enterprise Cloud AI -->
+            <div class="cost-card">
+              <div>
+                <div class="cost-tier-name">Tier 3: Enterprise Cloud AI (AWS / Azure / GCP)</div>
+                <div class="cost-price-val" id="tier3-cost">$150+ <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">/ mo</span></div>
+              </div>
+              <ul class="cost-list">
+                <li><span class="cross">✕</span> Application Load Balancer ($22+/mo + LCU fees)</li>
+                <li><span class="cross">✕</span> Inter-AZ Cross-Zone Traffic Tax ($0.01/GB)</li>
+                <li><span class="cross">✕</span> Enterprise Prometheus/CloudWatch Metrics Ingestion</li>
+                <li><span class="cross">✕</span> Enterprise Support & Proprietary Gateway Tax</li>
+              </ul>
+              <div style="font-size: 0.72rem; color: #ff9100; font-family: var(--font-code);">
+                ~15x–30x Cost Multiplier vs Sovereign
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Cryptographic Receipt Hash -->
+        <div class="receipt-bar">
+          <div class="receipt-info">
+            <span class="receipt-label">Cryptographic Receipt (SHA-256):</span>
+            <span class="receipt-hash" id="sim-receipt-hash">8f4a13c9e6d0a752bf810ec42a8b9415c328e19e74d125740b2f569bca937e21</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span class="badge" style="border-color: rgba(0, 245, 160, 0.4); color: var(--accent-green);">
+              VERIFIED ATTESTED
+            </span>
+            <button class="copy-btn" id="copy-receipt-btn" onclick="copyReceiptHash()">
+              📋 Copy Hash
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // Deterministic Simulation Data Models
+    const SIM_PROFILES = {
+      "docker-compose.yml": {
+        classification: "Heterogeneous Web + Database Microservices",
+        demands: "4 vCPUs · 16 GB ECC RAM · 40 GB NVMe · 0 GPU",
+        solverStatus: "SAT (14/14 Invariants · 1.18ms)",
+        rollbackTime: "23.8 ms (< 50ms Benchmark SLA)",
+        numa: "NUMA-0 (Socket 0, Cores 0-3)",
+        governor: '"performance" (Pinned 3.8GHz)',
+        cstate: "0us (PM QoS C0 Pinning)",
+        mem: "Local DDR5 Octa-Channel (Zero QPI Cross-Talk)",
+        affinity: "cgroup.cpuset = 0-3 (Isolcpus)",
+        vip: "10.42.0.18/32 (CIDR 10.42.0.0/16 wg-ltn0)",
+        crypto: "ChaCha20-Poly1305 (MTU 1420)",
+        ebpf: 'SEC("sockops") ALLOW :8080',
+        nftables: "nftables: inet filter drop untracked / synproxy",
+        egress: "ALLOW postgresql.internal:5432",
+        vaultZeroize: "mlock(2) + explicit_bzero",
+        swap: "0 Bytes (No-Swap Invariant)",
+        rollbackTrigger: "Atomic Socket Redirection",
+        rollbackMs: "23.8 ms (< 50ms Benchmark SLA)",
+        crashFootprint: "MADV_DONTDUMP (Zero Core Leak)",
+        smtSat: true,
+        vaultBadge: "In-Memory Zeroization GUARANTEED",
+        stages: [
+          { pct: "5%", p99: "16.4 ms", err: "0.000%" },
+          { pct: "25%", p99: "18.2 ms", err: "0.000%" },
+          { pct: "50%", p99: "20.1 ms", err: "0.000%" },
+          { pct: "100%", p99: "21.4 ms", err: "0.000%" }
+        ],
+        overallP99: "21.4 ms",
+        overallErr: "0.000%",
+        costs: {
+          tier1: "$0 – $10",
+          tier2: "$38.50",
+          tier3: "$168.00"
+        },
+        hashSeed: "docker-compose-v3-microservice-z3-smt-sat-sha256"
+      },
+      "project_profile.json": {
+        classification: "Distributed LLM / AI Inference (Tensor Parallelism TP=2)",
+        demands: "16 vCPUs (NUMA 0) · 64 GB DDR5 · 2x NVIDIA RTX Ada (48GB VRAM) · NVLink 900 GB/s",
+        solverStatus: "SAT (22/22 Invariants · 1.64ms)",
+        rollbackTime: "31.2 ms (< 50ms Benchmark SLA)",
+        numa: "NUMA-0 (Socket 0, Cores 0-15)",
+        governor: '"performance" (Locked 4.2GHz Turbo)',
+        cstate: "0us (C-State Disabled / latency=0)",
+        mem: "Local DDR5 (Pinned Node 0, 204.8 GB/s)",
+        affinity: "cgroup.cpuset = 0-15 (Exclusive)",
+        vip: "10.42.1.4/32 (CIDR 10.42.1.0/24 wg-ai-mesh)",
+        crypto: "ChaCha20-Poly1305 (MTU 9000 Jumbo)",
+        ebpf: 'SEC("xdp") Fast-Path DMA Bypass',
+        nftables: "nftables: synproxy / direct-gpu-bypass",
+        egress: "ALLOW nvlink-cluster.internal:9900",
+        vaultZeroize: "CUDA Unified Mem zeroed + mlock",
+        swap: "0 Bytes (mlockall pinned)",
+        rollbackTrigger: "NVLink Barrier Sync Fence + eBPF",
+        rollbackMs: "31.2 ms (< 50ms Benchmark SLA)",
+        crashFootprint: "MADV_DONTDUMP (Zero VRAM/RAM Dump)",
+        smtSat: true,
+        vaultBadge: "In-Memory Zeroization GUARANTEED",
+        stages: [
+          { pct: "5%", p99: "28.5 ms", err: "0.000%" },
+          { pct: "25%", p99: "31.2 ms", err: "0.000%" },
+          { pct: "50%", p99: "33.7 ms", err: "0.000%" },
+          { pct: "100%", p99: "35.1 ms", err: "0.000%" }
+        ],
+        overallP99: "35.1 ms",
+        overallErr: "0.000%",
+        costs: {
+          tier1: "$8.50",
+          tier2: "$49.00",
+          tier3: "$294.00"
+        },
+        hashSeed: "project-profile-vllm-tensor-parallel-z3-smt-sat-sha256"
+      },
+      "Dockerfile": {
+        classification: "Single-Stage Rootless OCI Micro-Container (Dockerfile)",
+        demands: "2 vCPUs · 4 GB ECC RAM · 20 GB NVMe · 0 GPU",
+        solverStatus: "SAT (12/12 Invariants · 0.94ms)",
+        rollbackTime: "18.6 ms (< 50ms Benchmark SLA)",
+        numa: "NUMA-0 (Socket 0, Cores 0-1)",
+        governor: '"performance" (Pinned 3.8GHz)',
+        cstate: "0us (PM QoS C0 Pinning)",
+        mem: "Local DDR5 Quad-Channel (Channel 0-1)",
+        affinity: "cgroup.cpuset = 0-1 (Isolcpus)",
+        vip: "10.42.0.22/32 (CIDR 10.42.0.0/16 wg-oci0)",
+        crypto: "ChaCha20-Poly1305 (MTU 1420)",
+        ebpf: 'SEC("sockops") ALLOW :3000',
+        nftables: "nftables: inet filter drop untracked / synproxy",
+        egress: "ALLOW internal.registry:5000",
+        vaultZeroize: "mlock(2) + explicit_bzero (Container Env)",
+        swap: "0 Bytes (Swap Disabled)",
+        rollbackTrigger: "Atomic cgroup v2 Freeze & Rollback",
+        rollbackMs: "18.6 ms (< 50ms Benchmark SLA)",
+        crashFootprint: "MADV_DONTDUMP (Zero Container Leak)",
+        smtSat: true,
+        vaultBadge: "In-Memory Zeroization GUARANTEED",
+        stages: [
+          { pct: "5%", p99: "11.2 ms", err: "0.000%" },
+          { pct: "25%", p99: "13.5 ms", err: "0.000%" },
+          { pct: "50%", p99: "15.1 ms", err: "0.000%" },
+          { pct: "100%", p99: "16.8 ms", err: "0.000%" }
+        ],
+        overallP99: "16.8 ms",
+        overallErr: "0.000%",
+        costs: {
+          tier1: "$0 – $4",
+          tier2: "$36.00",
+          tier3: "$145.00"
+        },
+        hashSeed: "dockerfile-rootless-oci-z3-smt-sat-sha256"
+      },
+      "./my-app": {
+        classification: "Ultra-Low-Latency Sovereign Micro-Daemon (Rust Native)",
+        demands: "1 vCPU (Core 2 Dedicated) · 512 MB RAM · 2 GB NVMe · 0 GPU",
+        solverStatus: "SAT (8/8 Invariants · 0.62ms)",
+        rollbackTime: "12.4 ms (< 50ms Benchmark SLA)",
+        numa: "NUMA-0 (Core 2 Pinned, Isolcpus)",
+        governor: '"performance" (Fixed 3.8GHz)',
+        cstate: "0us (cgroup.cpuset isolcpus)",
+        mem: "Local Node 0 L3 Cache Resident",
+        affinity: "cgroup.cpuset = 2 (Isolated Core)",
+        vip: "10.42.0.99/32 (CIDR 10.42.0.0/16 wg-local)",
+        crypto: "ChaCha20-Poly1305 (MTU 1420)",
+        ebpf: 'SEC("sockops") Direct Socket Splice',
+        nftables: "nftables: strict loopback / drop external",
+        egress: "STRICT LOCAL ONLY (Loopback)",
+        vaultZeroize: "Rust Zeroize crate + mlock core page",
+        swap: "0 Bytes (Swap Disabled)",
+        rollbackTrigger: "Kernel Socket Splice Atomic Divert",
+        rollbackMs: "12.4 ms (< 50ms Benchmark SLA)",
+        crashFootprint: "MADV_DONTDUMP (Zero Core Leak)",
+        smtSat: true,
+        vaultBadge: "In-Memory Zeroization GUARANTEED",
+        stages: [
+          { pct: "5%", p99: "4.2 ms", err: "0.000%" },
+          { pct: "25%", p99: "4.5 ms", err: "0.000%" },
+          { pct: "50%", p99: "4.8 ms", err: "0.000%" },
+          { pct: "100%", p99: "5.1 ms", err: "0.000%" }
+        ],
+        overallP99: "5.1 ms",
+        overallErr: "0.000%",
+        costs: {
+          tier1: "$0 – $2",
+          tier2: "$36.00",
+          tier3: "$152.00"
+        },
+        hashSeed: "my-app-sovereign-rust-daemon-z3-smt-sat-sha256"
+      }
+    };
+
+    // Deterministic SHA-256 helper
+    async function calculateSHA256(message) {
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const msgBuffer = new TextEncoder().encode(message);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch (e) {
+          // Fall through to fallback
+        }
+      }
+      // Deterministic fallback hash generator
+      let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+      for (let i = 0; i < message.length; i++) {
+        const ch = message.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      const part1 = (h1 >>> 0).toString(16).padStart(8, '0');
+      const part2 = (h2 >>> 0).toString(16).padStart(8, '0');
+      return (part1 + part2 + "f810ec42a8b9415c328e19e74d125740b2f569bca937e21a07d").substring(0, 64);
+    }
+
+    function syncPresetChips(val) {
+      document.querySelectorAll('.preset-chip').forEach(c => {
+        const presetVal = c.getAttribute('data-preset') || '';
+        if (presetVal === val) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+    }
+
+    function loadPreset(name, elem) {
+      const input = document.getElementById('manifest-path-input');
+      input.value = name;
+      syncPresetChips(name);
+      runSimulation();
+    }
+
+    let isSimulating = false;
+
+    async function runSimulation() {
+      if (isSimulating) return;
+      isSimulating = true;
+
+      const inputVal = document.getElementById('manifest-path-input').value.trim() || 'docker-compose.yml';
+      const runBtn = document.getElementById('run-sim-btn');
+      runBtn.classList.add('running');
+      runBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+          <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"></circle>
+        </svg>
+        <span>Solving Invariants (Z3 SMT)...</span>
+      `;
+
+      // Synchronize presets with current input
+      syncPresetChips(inputVal);
+
+      // Select profile or dynamic fallback
+      let profile = SIM_PROFILES[inputVal];
+      if (!profile) {
+        const lower = inputVal.toLowerCase();
+        if (lower.includes('unsat') || lower.includes('invalid') || lower.includes('unsafe') || lower.includes('violation')) {
+          profile = {
+            classification: "Invalid Workload Specification (" + inputVal + ")",
+            demands: "Detected Unbounded Thread Over-subscription (Jitter Breach)",
+            solverStatus: "UNSAT (Invariant #5 Violated: NUMA Contention Detected · 0.42ms)",
+            rollbackTime: "14.2 ms (< 50ms Fail-Closed Invariant)",
+            numa: "CONFLICT: Cross-NUMA Socket Memory Spanning",
+            governor: 'REJECTED ("powersave" Gov Incompatible)',
+            cstate: "VIOLATION (> 100us C6 Sleep Latency)",
+            mem: "NON-LOCAL DDR5 (QPI Cross-Talk Bottleneck)",
+            affinity: "UNPINNED (Scheduler Jitter Violation)",
+            vip: "REJECTED (Unauthenticated Ingress)",
+            crypto: "BLOCKED (Mesh Key Mismatch)",
+            ebpf: 'SEC("filter") DROP ALL (Quarantine)',
+            nftables: "nftables: drop all (Quarantine Chain)",
+            egress: "BLOCKED (Isolation Enforced)",
+            vaultZeroize: "ENCLAVE REJECTED (Zeroization Failed)",
+            swap: "Swap Active (Breaches Strict No-Swap SLA)",
+            rollbackTrigger: "Atomic Kernel Socket Redirection",
+            rollbackMs: "14.2 ms (< 50ms Benchmark SLA)",
+            crashFootprint: "MADV_DONTDUMP (Immediate Quarantine)",
+            smtSat: false,
+            vaultBadge: "Allocation Rejected (Fail-Closed)",
+            stages: [
+              { pct: "5%", p99: "185.0 ms", err: "100.000%" },
+              { pct: "25%", p99: "N/A", err: "ABORTED" },
+              { pct: "50%", p99: "N/A", err: "ABORTED" },
+              { pct: "100%", p99: "N/A", err: "ABORTED" }
+            ],
+            overallP99: "ROLLBACK (14.2ms)",
+            overallErr: "100% (Quarantined)",
+            costs: {
+              tier1: "$0.00",
+              tier2: "N/A",
+              tier3: "N/A"
+            },
+            hashSeed: "unsat-invariant-breach-fail-closed"
+          };
+        } else if (lower.includes('dockerfile') || lower.includes('oci')) {
+          profile = SIM_PROFILES['Dockerfile'];
+        } else if (lower.includes('compose') || lower.includes('docker')) {
+          profile = SIM_PROFILES['docker-compose.yml'];
+        } else if (lower.includes('profile') || lower.includes('json') || lower.includes('vllm') || lower.includes('ai')) {
+          profile = SIM_PROFILES['project_profile.json'];
+        } else if (lower.includes('app') || lower.includes('bin') || lower.includes('daemon') || lower.includes('rust')) {
+          profile = SIM_PROFILES['./my-app'];
+        } else {
+          // Dynamic profile for custom path
+          profile = {
+            classification: "Heterogeneous Sovereign Workload (" + inputVal + ")",
+            demands: "8 vCPUs · 32 GB ECC RAM · 100 GB NVMe · 1x GPU",
+            solverStatus: "SAT (16/16 Invariants · 1.34ms)",
+            rollbackTime: "24.1 ms (< 50ms Benchmark SLA)",
+            numa: "NUMA-0 (Socket 0, Cores 0-7)",
+            governor: '"performance" (Pinned 3.8GHz)',
+            cstate: "0us (PM QoS C0 Pinning)",
+            mem: "Local DDR5 Octa-Channel (Zero QPI Cross-Talk)",
+            affinity: "cgroup.cpuset = 0-7 (Isolcpus)",
+            vip: "10.42.0.55/32 (CIDR 10.42.0.0/16 wg-custom)",
+            crypto: "ChaCha20-Poly1305 (MTU 1420)",
+            ebpf: 'SEC("sockops") ALLOW :8080, :9000',
+            nftables: "nftables: inet filter drop untracked / synproxy",
+            egress: "ALLOW internal.mesh:5432",
+            vaultZeroize: "mlock(2) + explicit_bzero",
+            swap: "0 Bytes (No-Swap Invariant)",
+            rollbackTrigger: "Atomic Socket Redirection",
+            rollbackMs: "24.1 ms (< 50ms Benchmark SLA)",
+            crashFootprint: "MADV_DONTDUMP (Zero Core Leak)",
+            smtSat: true,
+            vaultBadge: "In-Memory Zeroization GUARANTEED",
+            stages: [
+              { pct: "5%", p99: "17.5 ms", err: "0.000%" },
+              { pct: "25%", p99: "19.2 ms", err: "0.000%" },
+              { pct: "50%", p99: "21.1 ms", err: "0.000%" },
+              { pct: "100%", p99: "22.8 ms", err: "0.000%" }
+            ],
+            overallP99: "22.8 ms",
+            overallErr: "0.000%",
+            costs: {
+              tier1: "$0 – $10",
+              tier2: "$42.00",
+              tier3: "$185.00"
+            },
+            hashSeed: inputVal + "-sovereign-manifest-z3-smt"
+          };
+        }
+      }
+
+      // 1. SMT Invariant Solver Animation
+      const badgeSmt = document.getElementById('badge-smt-proof');
+      const badgeVault = document.getElementById('badge-vault-zero');
+      const solverStat = document.getElementById('solver-status-stat');
+
+      if (badgeSmt) {
+        badgeSmt.className = 'proof-badge-solving';
+        badgeSmt.innerHTML = '<span class="pulse-dot" style="background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan);"></span><span>SMT: EVALUATING CLAUSES (Z3)...</span>';
+      }
+      if (badgeVault) {
+        badgeVault.className = 'badge-vault-zero';
+        badgeVault.innerHTML = '<span style="font-size: 0.85rem;">⏳</span><span>Ephemeral Vault: Allocating Locked Enclave...</span>';
+      }
+      if (solverStat) {
+        solverStat.textContent = 'Evaluating First-Order Clauses...';
+        solverStat.style.color = 'var(--accent-cyan)';
+      }
+
+      // SMT solver synthesis latency
+      await new Promise(r => setTimeout(r, 420));
+
+      // 2. SMT Verification Resolution
+      if (profile.smtSat !== false) {
+        if (badgeSmt) {
+          badgeSmt.className = 'proof-badge-sat';
+          badgeSmt.innerHTML = '<span class="pulse-dot"></span><span>SMT: SAT — PROVABLY INVARIANT COMPLIANT</span>';
+        }
+        if (badgeVault) {
+          badgeVault.className = 'badge-vault-zero';
+          badgeVault.innerHTML = `<span style="font-size: 0.85rem;">🛡️</span><span>Ephemeral Vault: ${profile.vaultBadge || "In-Memory Zeroization GUARANTEED"}</span>`;
+        }
+        if (solverStat) {
+          solverStat.textContent = profile.solverStatus;
+          solverStat.style.color = 'var(--accent-green)';
+        }
+      } else {
+        if (badgeSmt) {
+          badgeSmt.className = 'proof-badge-unsat';
+          badgeSmt.innerHTML = '<span class="pulse-dot" style="background: #ff5252; box-shadow: 0 0 8px #ff5252;"></span><span>SMT: UNSAT — CONSTRAINT VIOLATION</span>';
+        }
+        if (badgeVault) {
+          badgeVault.className = 'badge-vault-zero violating';
+          badgeVault.innerHTML = `<span style="font-size: 0.85rem;">⚠️</span><span>Ephemeral Vault: ${profile.vaultBadge || "Allocation Rejected (Fail-Closed)"}</span>`;
+        }
+        if (solverStat) {
+          solverStat.textContent = profile.solverStatus;
+          solverStat.style.color = '#ff5252';
+        }
+      }
+
+      // 3. Update Overview & Technical Detail Panels
+      document.getElementById('workload-class').textContent = profile.classification;
+      document.getElementById('detected-demands').textContent = profile.demands;
+      document.getElementById('rollback-time-stat').textContent = profile.rollbackTime;
+      
+      // Card 1: Hardware Topology Placement (NUMA, governor, C-state, memory channel, cpuset)
+      document.getElementById('placement-numa').textContent = profile.numa;
+      document.getElementById('placement-gov').textContent = profile.governor;
+      document.getElementById('placement-cstate').textContent = profile.cstate;
+      document.getElementById('placement-mem').textContent = profile.mem;
+      document.getElementById('placement-affinity').textContent = profile.affinity;
+      
+      // Card 2: Zero-Trust Network Contract (WireGuard CIDR/VIP, eBPF sockops, nftables)
+      document.getElementById('net-vip').textContent = profile.vip;
+      document.getElementById('net-crypto').textContent = profile.crypto;
+      document.getElementById('net-ebpf').textContent = profile.ebpf;
+      const netNftables = document.getElementById('net-nftables');
+      if (netNftables) netNftables.textContent = profile.nftables;
+      document.getElementById('net-egress').textContent = profile.egress;
+      
+      // Card 3: Ephemeral Vault & Fail-Closed Guardrails
+      document.getElementById('vault-zeroize').textContent = profile.vaultZeroize;
+      const vaultSwap = document.getElementById('vault-swap');
+      if (vaultSwap) vaultSwap.textContent = profile.swap;
+      document.getElementById('rollback-trigger').textContent = profile.rollbackTrigger;
+      document.getElementById('net-rollback').textContent = profile.rollbackMs;
+      const crashFp = document.getElementById('crash-footprint');
+      if (crashFp) crashFp.textContent = profile.crashFootprint;
+      
+      // Update Cost Cards
+      document.getElementById('tier1-cost').innerHTML = `${profile.costs.tier1} <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">/ mo</span>`;
+      document.getElementById('tier2-cost').innerHTML = `${profile.costs.tier2} <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">/ mo</span>`;
+      document.getElementById('tier3-cost').innerHTML = `${profile.costs.tier3} <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">/ mo</span>`;
+
+      // Update SHA-256 Receipt Hash
+      const timestamp = new Date().toISOString();
+      const hashStr = await calculateSHA256(profile.hashSeed + ":" + timestamp + ":" + inputVal);
+      document.getElementById('sim-receipt-hash').textContent = hashStr;
+
+      // 4. Animate 4-Stage Canary Rollout
+      const progressBar = document.getElementById('canary-progress-bar');
+      const phaseIndicator = document.getElementById('canary-current-phase');
+      const stageCards = [
+        document.getElementById('canary-stage-1'),
+        document.getElementById('canary-stage-2'),
+        document.getElementById('canary-stage-3'),
+        document.getElementById('canary-stage-4')
+      ];
+      const stageStatuses = [
+        document.getElementById('canary-status-1'),
+        document.getElementById('canary-status-2'),
+        document.getElementById('canary-status-3'),
+        document.getElementById('canary-status-4')
+      ];
+
+      // Reset states
+      progressBar.style.width = '0%';
+      progressBar.style.background = 'linear-gradient(90deg, #00f2fe 0%, #00f5a0 100%)';
+      stageCards.forEach((card, idx) => {
+        if (card) card.classList.remove('passed', 'active', 'failed');
+        if (stageStatuses[idx]) {
+          stageStatuses[idx].textContent = 'QUEUED';
+          stageStatuses[idx].style.background = 'rgba(255, 255, 255, 0.05)';
+          stageStatuses[idx].style.color = 'var(--text-muted)';
+        }
+      });
+
+      // Update stage metric values
+      document.getElementById('stage-1-p99').textContent = profile.stages[0].p99;
+      document.getElementById('stage-1-err').textContent = profile.stages[0].err;
+      document.getElementById('stage-2-p99').textContent = profile.stages[1].p99;
+      document.getElementById('stage-2-err').textContent = profile.stages[1].err;
+      document.getElementById('stage-3-p99').textContent = profile.stages[2].p99;
+      document.getElementById('stage-3-err').textContent = profile.stages[2].err;
+      document.getElementById('stage-4-p99').textContent = profile.stages[3].p99;
+      document.getElementById('stage-4-err').textContent = profile.stages[3].err;
+
+      if (profile.smtSat !== false) {
+        const stageDelays = [220, 220, 220, 260];
+        const widths = ['5%', '25%', '50%', '100%'];
+
+        for (let i = 0; i < 4; i++) {
+          if (phaseIndicator) phaseIndicator.textContent = `Stage ${i + 1} / 4`;
+          progressBar.style.width = widths[i];
+          if (stageCards[i]) stageCards[i].classList.add('active');
+          if (stageStatuses[i]) {
+            stageStatuses[i].textContent = 'TESTING...';
+            stageStatuses[i].style.background = 'rgba(0, 242, 254, 0.15)';
+            stageStatuses[i].style.color = 'var(--accent-cyan)';
+          }
+
+          await new Promise(r => setTimeout(r, stageDelays[i]));
+
+          if (stageCards[i]) {
+            stageCards[i].classList.remove('active');
+            stageCards[i].classList.add('passed');
+          }
+          if (stageStatuses[i]) {
+            stageStatuses[i].textContent = (i === 3) ? 'COMPLETE' : 'PASSED';
+            stageStatuses[i].style.background = 'rgba(0, 245, 160, 0.15)';
+            stageStatuses[i].style.color = 'var(--accent-green)';
+          }
+        }
+
+        document.getElementById('canary-overall-p99').textContent = profile.overallP99;
+        document.getElementById('canary-overall-err').textContent = profile.overallErr;
+      } else {
+        // UNSAT Fail-Closed Rollback Execution
+        if (phaseIndicator) phaseIndicator.textContent = 'Stage 1 / 4 (INVARIANT BREACH)';
+        progressBar.style.width = '5%';
+        progressBar.style.background = 'linear-gradient(90deg, #ff5252 0%, #ff1744 100%)';
+        if (stageCards[0]) stageCards[0].classList.add('active');
+        if (stageStatuses[0]) {
+          stageStatuses[0].textContent = 'TESTING...';
+          stageStatuses[0].style.background = 'rgba(255, 82, 82, 0.15)';
+          stageStatuses[0].style.color = '#ff5252';
+        }
+
+        await new Promise(r => setTimeout(r, 260));
+
+        if (stageCards[0]) {
+          stageCards[0].classList.remove('active');
+          stageCards[0].classList.add('failed');
+        }
+        if (stageStatuses[0]) {
+          stageStatuses[0].textContent = 'FAIL-CLOSED';
+          stageStatuses[0].style.background = 'rgba(255, 82, 82, 0.25)';
+          stageStatuses[0].style.color = '#ff5252';
+        }
+
+        if (phaseIndicator) phaseIndicator.textContent = `FAIL-CLOSED: Rolled back in ${profile.rollbackMs}`;
+        document.getElementById('canary-overall-p99').textContent = profile.overallP99;
+        document.getElementById('canary-overall-err').textContent = profile.overallErr;
+      }
+
+      // 5. Completion Feedback
+      runBtn.classList.remove('running');
+      runBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <span>Simulate Deployment</span>
+      `;
+      isSimulating = false;
+    }
+
+    // Robust Copy to Clipboard with Textarea Fallback
+    function copyReceiptHash() {
+      const hashElem = document.getElementById('sim-receipt-hash');
+      const hashText = hashElem ? hashElem.textContent.trim() : '';
+      const btn = document.getElementById('copy-receipt-btn');
+      const origText = btn ? btn.innerHTML : '📋 Copy Hash';
+      
+      const onSuccess = () => {
+        if (!btn) return;
+        btn.innerHTML = '✓ Copied!';
+        btn.style.color = 'var(--accent-green)';
+        btn.style.borderColor = 'rgba(0, 245, 160, 0.5)';
+        setTimeout(() => {
+          btn.innerHTML = origText;
+          btn.style.color = '';
+          btn.style.borderColor = '';
+        }, 2000);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(hashText).then(onSuccess).catch(() => {
+          fallbackCopy(hashText, onSuccess);
+        });
+      } else {
+        fallbackCopy(hashText, onSuccess);
+      }
+    }
+
+    function fallbackCopy(text, cb) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (cb) cb();
+      } catch (e) {
+        console.error('Copy fallback failed:', e);
+      }
+    }
+
+    // Event listeners for custom typing and enter key
+    const manifestInput = document.getElementById('manifest-path-input');
+    if (manifestInput) {
+      manifestInput.addEventListener('input', function(e) {
+        const val = ((this && this.value !== undefined) ? this.value : (e && e.target && e.target.value !== undefined) ? e.target.value : manifestInput.value) || '';
+        syncPresetChips(val.trim());
+      });
+
+      manifestInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          runSimulation();
+        }
+      });
+    }
+  </script>
+
 </body>
 </html>

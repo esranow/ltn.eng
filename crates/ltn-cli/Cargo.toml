@@ -9,6 +9,7 @@ ltn-architect.workspace = true
 ltn-agent.workspace = true
 ltn-providers.workspace = true
 ltn-ops.workspace = true
+ltn-container.workspace = true
 clap.workspace = true
 tokio.workspace = true
 serde.workspace = true
@@ -18,6 +19,8 @@ ratatui.workspace = true
 crossterm.workspace = true
 open.workspace = true
 sysinfo.workspace = true
+chrono.workspace = true
+uuid.workspace = true
 
 [[bin]]
 name = "ltn"

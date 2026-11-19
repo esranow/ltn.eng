@@ -230,15 +230,8 @@ impl ToolRegistry {
         }
 
         match call.tool {
-            AgentToolKind::Mutate => {
-                if call.payload.trim().is_empty() {
-                    return Err(ToolValidationError::MissingParameter("payload".to_string()));
-                }
-            }
-            AgentToolKind::Rollback => {
-                if call.payload.trim().is_empty() {
-                    return Err(ToolValidationError::MissingParameter("payload".to_string()));
-                }
+            AgentToolKind::Mutate | AgentToolKind::Rollback if call.payload.trim().is_empty() => {
+                return Err(ToolValidationError::MissingParameter("payload".to_string()));
             }
             _ => {}
         }
@@ -254,28 +247,28 @@ impl ToolRegistry {
             ToolValidationError::SchemaError("Tool invocation must be a JSON object".to_string())
         })?;
 
-        let tool_val = obj.get("tool").ok_or_else(|| {
-            ToolValidationError::MissingParameter("tool".to_string())
-        })?;
-        let tool_str = tool_val.as_str().ok_or_else(|| {
-            ToolValidationError::TypeMismatch {
+        let tool_val = obj
+            .get("tool")
+            .ok_or_else(|| ToolValidationError::MissingParameter("tool".to_string()))?;
+        let tool_str = tool_val
+            .as_str()
+            .ok_or_else(|| ToolValidationError::TypeMismatch {
                 field: "tool".to_string(),
                 expected: "string".to_string(),
                 actual: format!("{:?}", tool_val),
-            }
-        })?;
+            })?;
         let tool: AgentToolKind = tool_str.parse()?;
 
-        let target_val = obj.get("target").ok_or_else(|| {
-            ToolValidationError::MissingParameter("target".to_string())
-        })?;
-        let target = target_val.as_str().ok_or_else(|| {
-            ToolValidationError::TypeMismatch {
+        let target_val = obj
+            .get("target")
+            .ok_or_else(|| ToolValidationError::MissingParameter("target".to_string()))?;
+        let target = target_val
+            .as_str()
+            .ok_or_else(|| ToolValidationError::TypeMismatch {
                 field: "target".to_string(),
                 expected: "string".to_string(),
                 actual: format!("{:?}", target_val),
-            }
-        })?;
+            })?;
 
         let payload = match obj.get("payload") {
             Some(v) => {
@@ -312,16 +305,42 @@ impl ToolRegistry {
         }
 
         match call.tool {
-            AgentToolKind::Read => ToolResult {
-                success: true,
-                message: format!("Read executed on {}", call.target),
-                output: format!("Content of {}", call.target),
-            },
-            AgentToolKind::Plan => ToolResult {
-                success: true,
-                message: format!("Plan generated for {}", call.target),
-                output: "Plan details: 3-tier model selected".to_string(),
-            },
+            AgentToolKind::Read => {
+                let target_path = std::path::Path::new(&call.target);
+                let detail = if target_path.exists() {
+                    let manifests =
+                        ltn_architect::parsers::ManifestParser::discover_in_dir(target_path);
+                    format!("Detected files: {:?}", manifests.detected_files)
+                } else {
+                    format!("Content of {}", call.target)
+                };
+                ToolResult {
+                    success: true,
+                    message: format!("Read executed on {}", call.target),
+                    output: detail,
+                }
+            }
+            AgentToolKind::Plan => {
+                let target_path = std::path::Path::new(&call.target);
+                let detail = if target_path.exists() {
+                    let manifests =
+                        ltn_architect::parsers::ManifestParser::discover_in_dir(target_path);
+                    let class = ltn_architect::classifier::WorkloadClassifier::classify(
+                        &manifests,
+                        &call.target,
+                    );
+                    let plans = ltn_architect::planner::ArchitecturePlanner::generate_plans(&class);
+                    format!("Plan generated: 3-tier models (Cheapest: ${:.2}/mo, Balanced: ${:.2}/mo, HighPerformance: ${:.2}/mo)",
+                        plans[0].estimated_monthly_cost_usd, plans[1].estimated_monthly_cost_usd, plans[2].estimated_monthly_cost_usd)
+                } else {
+                    "Plan details: 3-tier model selected".to_string()
+                };
+                ToolResult {
+                    success: true,
+                    message: format!("Plan generated for {}", call.target),
+                    output: detail,
+                }
+            }
             AgentToolKind::Validate => ToolResult {
                 success: true,
                 message: format!("Validation passed for {}", call.target),

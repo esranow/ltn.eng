@@ -49,7 +49,10 @@ impl CrossProjectMemoryEngine {
             .map(|s| s.ast_fingerprint.clone())
             .unwrap_or_else(|| "unindexed_fingerprint".to_string());
 
-        let delta = if let (Some(from), Some(to)) = (self.snapshots.get(from_project), self.snapshots.get(to_project)) {
+        let delta = if let (Some(from), Some(to)) = (
+            self.snapshots.get(from_project),
+            self.snapshots.get(to_project),
+        ) {
             (from.symbol_count as i64 - to.symbol_count as i64).unsigned_abs() as usize
         } else {
             0

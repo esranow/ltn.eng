@@ -1,11 +1,16 @@
 pub mod config;
 pub mod crypto;
+pub mod guardrails;
 pub mod ir;
 pub mod memory;
 pub mod solver;
 pub mod state_machine;
 pub mod topology;
+pub mod vault;
 
+pub use solver::SimulationProofCertificate;
+pub use topology::SimulatedHardwarePlacement;
+pub use vault::SimulatedVaultReport;
 
 #[cfg(test)]
 mod tests {
@@ -200,8 +205,12 @@ mod tests {
         let h2 = crypto::StateHasher::hash_bytes(&data2);
         assert_ne!(h1, h2);
 
-        let bytes1: Vec<u8> = (0..32).map(|i| u8::from_str_radix(&h1[i*2..i*2+2], 16).unwrap()).collect();
-        let bytes2: Vec<u8> = (0..32).map(|i| u8::from_str_radix(&h2[i*2..i*2+2], 16).unwrap()).collect();
+        let bytes1: Vec<u8> = (0..32)
+            .map(|i| u8::from_str_radix(&h1[i * 2..i * 2 + 2], 16).unwrap())
+            .collect();
+        let bytes2: Vec<u8> = (0..32)
+            .map(|i| u8::from_str_radix(&h2[i * 2..i * 2 + 2], 16).unwrap())
+            .collect();
 
         let mut diff_bits = 0;
         for i in 0..32 {
@@ -209,28 +218,41 @@ mod tests {
         }
 
         // Standard avalanche effect for SHA-256: bit difference is between 25% and 75% (64 to 192 bits out of 256)
-        assert!(diff_bits > 80 && diff_bits < 180, "Avalanche bit diff was {}", diff_bits);
+        assert!(
+            diff_bits > 80 && diff_bits < 180,
+            "Avalanche bit diff was {}",
+            diff_bits
+        );
     }
-
-
 
     // --- IR & CONSTRAINTS SUITE ---
     #[test]
     fn test_ir_zero_resources() {
-        let w = WorkloadBuilder::new("zero-res").cpu_cores(0).ram_mb(0).build();
+        let w = WorkloadBuilder::new("zero-res")
+            .cpu_cores(0)
+            .ram_mb(0)
+            .build();
         assert_eq!(w.name, "zero-res");
         assert_eq!(w.constraints.len(), 2);
     }
 
     #[test]
     fn test_ir_large_resources() {
-        let w = WorkloadBuilder::new("huge-res").cpu_cores(1024).ram_mb(1_000_000).vram_mb(80_000).gpu_count(8).build();
+        let w = WorkloadBuilder::new("huge-res")
+            .cpu_cores(1024)
+            .ram_mb(1_000_000)
+            .vram_mb(80_000)
+            .gpu_count(8)
+            .build();
         assert_eq!(w.constraints.len(), 4);
     }
 
     #[test]
     fn test_ir_workload_serialization() {
-        let w = WorkloadBuilder::new("serial-test").cpu_cores(4).ram_mb(4096).build();
+        let w = WorkloadBuilder::new("serial-test")
+            .cpu_cores(4)
+            .ram_mb(4096)
+            .build();
         let serialized = serde_json::to_string(&w).unwrap();
         let deserialized: ir::Workload = serde_json::from_str(&serialized).unwrap();
         assert_eq!(w.name, deserialized.name);
@@ -250,7 +272,10 @@ mod tests {
 
     #[test]
     fn test_ir_cluster_state_empty() {
-        let cluster = ClusterState { resources: vec![], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![],
+            network_latencies: std::collections::HashMap::new(),
+        };
         assert_eq!(cluster.resources.len(), 0);
     }
 
@@ -259,7 +284,10 @@ mod tests {
     fn test_solver_empty_intent() {
         let adapter = TopologyDiscoveryAdapter::new();
         let resource = adapter.discover_local_hardware();
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let intent = create_intent(vec![]);
         let manifest = SmtSolver::solve(&intent, &cluster).unwrap();
         assert_eq!(manifest.mappings.len(), 0);
@@ -267,7 +295,10 @@ mod tests {
 
     #[test]
     fn test_solver_empty_cluster() {
-        let cluster = ClusterState { resources: vec![], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("orphan").cpu_cores(1).build();
         let intent = create_intent(vec![w]);
         let err = SmtSolver::solve(&intent, &cluster).unwrap_err();
@@ -283,7 +314,10 @@ mod tests {
     fn test_solver_multi_workload_fit() {
         let adapter = TopologyDiscoveryAdapter::new();
         let resource = adapter.discover_local_hardware();
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w1 = WorkloadBuilder::new("w1").cpu_cores(1).ram_mb(512).build();
         let w2 = WorkloadBuilder::new("w2").cpu_cores(1).ram_mb(1024).build();
         let intent = create_intent(vec![w1, w2]);
@@ -295,7 +329,10 @@ mod tests {
     fn test_solver_unsat_ram_core_extraction() {
         let adapter = TopologyDiscoveryAdapter::new();
         let resource = adapter.discover_local_hardware();
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("ram-hog").ram_mb(999_999_999).build();
         let intent = create_intent(vec![w]);
         let err = SmtSolver::solve(&intent, &cluster).unwrap_err();
@@ -312,7 +349,10 @@ mod tests {
         let adapter = TopologyDiscoveryAdapter::new();
         let mut resource = adapter.discover_local_hardware();
         resource.total_vram_mb = 8192;
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("gpu-hog").vram_mb(24576).build();
         let intent = create_intent(vec![w]);
         let err = SmtSolver::solve(&intent, &cluster).unwrap_err();
@@ -329,7 +369,10 @@ mod tests {
         let adapter = TopologyDiscoveryAdapter::new();
         let mut resource = adapter.discover_local_hardware();
         resource.total_gpu_count = 1;
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("multi-gpu").gpu_count(4).build();
         let intent = create_intent(vec![w]);
         let err = SmtSolver::solve(&intent, &cluster).unwrap_err();
@@ -345,8 +388,14 @@ mod tests {
     fn test_solver_exact_capacity_boundary() {
         let adapter = TopologyDiscoveryAdapter::new();
         let resource = adapter.discover_local_hardware();
-        let cluster = ClusterState { resources: vec![resource.clone()], network_latencies: std::collections::HashMap::new() };
-        let w = WorkloadBuilder::new("exact-fit").cpu_cores(resource.total_cpu_cores).ram_mb(resource.total_ram_mb).build();
+        let cluster = ClusterState {
+            resources: vec![resource.clone()],
+            network_latencies: std::collections::HashMap::new(),
+        };
+        let w = WorkloadBuilder::new("exact-fit")
+            .cpu_cores(resource.total_cpu_cores)
+            .ram_mb(resource.total_ram_mb)
+            .build();
         let intent = create_intent(vec![w]);
         let res = SmtSolver::solve(&intent, &cluster);
         assert!(res.is_ok());
@@ -356,8 +405,13 @@ mod tests {
     fn test_solver_overcapacity_by_one_mb() {
         let adapter = TopologyDiscoveryAdapter::new();
         let resource = adapter.discover_local_hardware();
-        let cluster = ClusterState { resources: vec![resource.clone()], network_latencies: std::collections::HashMap::new() };
-        let w = WorkloadBuilder::new("over-by-one").ram_mb(resource.total_ram_mb + 1).build();
+        let cluster = ClusterState {
+            resources: vec![resource.clone()],
+            network_latencies: std::collections::HashMap::new(),
+        };
+        let w = WorkloadBuilder::new("over-by-one")
+            .ram_mb(resource.total_ram_mb + 1)
+            .build();
         let intent = create_intent(vec![w]);
         let err = SmtSolver::solve(&intent, &cluster);
         assert!(err.is_err());
@@ -386,8 +440,14 @@ mod tests {
             network_bw_gbps: 10,
         };
 
-        let cluster = ClusterState { resources: vec![node1, node2.clone()], network_latencies: std::collections::HashMap::new() };
-        let w = WorkloadBuilder::new("needs-big").cpu_cores(8).ram_mb(16384).build();
+        let cluster = ClusterState {
+            resources: vec![node1, node2.clone()],
+            network_latencies: std::collections::HashMap::new(),
+        };
+        let w = WorkloadBuilder::new("needs-big")
+            .cpu_cores(8)
+            .ram_mb(16384)
+            .build();
         let intent = create_intent(vec![w.clone()]);
         let manifest = SmtSolver::solve(&intent, &cluster).unwrap();
         assert_eq!(manifest.mappings.get(&w.id), Some(&node2.block_id));
@@ -398,14 +458,19 @@ mod tests {
         let adapter = TopologyDiscoveryAdapter::new();
         let mut resource = adapter.discover_local_hardware();
         resource.total_cpu_cores = 4;
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("cpu-hog").cpu_cores(128).build();
         let intent = create_intent(vec![w]);
         let err = SmtSolver::solve(&intent, &cluster).unwrap_err();
         match err {
             solver::SolverError::Unsatisfiable { mus_core } => {
                 assert!(mus_core.iter().any(|m| m.contains("requires CPU cores")));
-                assert!(mus_core.iter().any(|m| m.contains("No resource block in cluster satisfies workload")));
+                assert!(mus_core
+                    .iter()
+                    .any(|m| m.contains("No resource block in cluster satisfies workload")));
             }
             _ => panic!("Expected Unsatisfiable CPU cores"),
         }
@@ -416,7 +481,10 @@ mod tests {
         let adapter = TopologyDiscoveryAdapter::new();
         let mut resource = adapter.discover_local_hardware();
         resource.network_bw_gbps = 1;
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("net-hog")
             .add_constraint(ir::Constraint::NetworkGbps(100))
             .build();
@@ -434,7 +502,10 @@ mod tests {
     fn test_solver_zero_resources_edge_case() {
         let adapter = TopologyDiscoveryAdapter::new();
         let resource = adapter.discover_local_hardware();
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("zero-res")
             .cpu_cores(0)
             .ram_mb(0)
@@ -458,7 +529,10 @@ mod tests {
             total_gpu_count: 0,
             network_bw_gbps: 0,
         };
-        let cluster = ClusterState { resources: vec![zero_node], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![zero_node],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w_zero = WorkloadBuilder::new("zero").cpu_cores(0).ram_mb(0).build();
         assert!(SmtSolver::solve(&create_intent(vec![w_zero]), &cluster).is_ok());
 
@@ -471,7 +545,10 @@ mod tests {
     fn test_solver_huge_limits_edge_case() {
         let adapter = TopologyDiscoveryAdapter::new();
         let resource = adapter.discover_local_hardware();
-        let cluster = ClusterState { resources: vec![resource], network_latencies: std::collections::HashMap::new() };
+        let cluster = ClusterState {
+            resources: vec![resource],
+            network_latencies: std::collections::HashMap::new(),
+        };
         let w = WorkloadBuilder::new("huge-limits")
             .cpu_cores(u32::MAX)
             .ram_mb(u32::MAX)
@@ -765,7 +842,8 @@ mod tests {
 
     #[test]
     fn test_settings_missing_file_creates_default() {
-        let tmp_path = std::env::temp_dir().join(format!("nonexistent_ltn_{}.toml", uuid::Uuid::new_v4()));
+        let tmp_path =
+            std::env::temp_dir().join(format!("nonexistent_ltn_{}.toml", uuid::Uuid::new_v4()));
         assert!(!tmp_path.exists());
         let s = LtnSettings::load_from_file(&tmp_path).unwrap();
         assert_eq!(s.provider.default_provider, "LOCAL_DOCKER");
@@ -789,8 +867,12 @@ mod tests {
         let json_path = std::env::temp_dir().join(format!("test_settings_{}.json", uid));
 
         // Save to both formats
-        custom_settings.save_to_file(&toml_path).expect("failed to save toml");
-        custom_settings.save_to_file(&json_path).expect("failed to save json");
+        custom_settings
+            .save_to_file(&toml_path)
+            .expect("failed to save toml");
+        custom_settings
+            .save_to_file(&json_path)
+            .expect("failed to save json");
 
         // Load back from both formats
         let loaded_toml = LtnSettings::load_from_file(&toml_path).expect("failed to load toml");
@@ -798,27 +880,44 @@ mod tests {
 
         // Verify TOML loaded matches original
         assert_eq!(loaded_toml.provider.default_provider, "HYBRID_CLOUD");
-        assert_eq!(loaded_toml.provider.aws_region.as_deref(), Some("eu-central-1"));
+        assert_eq!(
+            loaded_toml.provider.aws_region.as_deref(),
+            Some("eu-central-1")
+        );
         assert_eq!(loaded_toml.telemetry.probe_interval_sec, 42);
         assert!(!loaded_toml.telemetry.auto_heal_enabled);
         assert_eq!(loaded_toml.llm.active_model, "claude-3-7-sonnet");
 
         // Verify JSON loaded matches original
         assert_eq!(loaded_json.provider.default_provider, "HYBRID_CLOUD");
-        assert_eq!(loaded_json.provider.aws_region.as_deref(), Some("eu-central-1"));
+        assert_eq!(
+            loaded_json.provider.aws_region.as_deref(),
+            Some("eu-central-1")
+        );
         assert_eq!(loaded_json.telemetry.probe_interval_sec, 42);
         assert!(!loaded_json.telemetry.auto_heal_enabled);
         assert_eq!(loaded_json.llm.active_model, "claude-3-7-sonnet");
 
         // Verify semantic parity between TOML and JSON deserialized objects
-        assert_eq!(loaded_toml.provider.default_provider, loaded_json.provider.default_provider);
-        assert_eq!(loaded_toml.telemetry.probe_interval_sec, loaded_json.telemetry.probe_interval_sec);
+        assert_eq!(
+            loaded_toml.provider.default_provider,
+            loaded_json.provider.default_provider
+        );
+        assert_eq!(
+            loaded_toml.telemetry.probe_interval_sec,
+            loaded_json.telemetry.probe_interval_sec
+        );
         assert_eq!(loaded_toml.llm.active_model, loaded_json.llm.active_model);
 
         // Verify fallback parsing: JSON content in .toml file
         let mismatched_path = std::env::temp_dir().join(format!("test_mismatch_{}.toml", uid));
-        std::fs::write(&mismatched_path, serde_json::to_string(&custom_settings).unwrap()).unwrap();
-        let fallback_loaded = LtnSettings::load_from_file(&mismatched_path).expect("fallback parsing failed");
+        std::fs::write(
+            &mismatched_path,
+            serde_json::to_string(&custom_settings).unwrap(),
+        )
+        .unwrap();
+        let fallback_loaded =
+            LtnSettings::load_from_file(&mismatched_path).expect("fallback parsing failed");
         assert_eq!(fallback_loaded.provider.default_provider, "HYBRID_CLOUD");
 
         // Clean up temporary files
@@ -878,7 +977,12 @@ mod tests {
         let mut engine = AutoManagedPgVectorEngine::new();
         let _ = engine.initialize_hidden_daemon();
         for i in 0..5 {
-            let _ = engine.store_semantic_context(&format!("proj_{}", i), "fn test()", vec![0.1 * i as f32, 0.2, 0.3], "proof");
+            let _ = engine.store_semantic_context(
+                &format!("proj_{}", i),
+                "fn test()",
+                vec![0.1 * i as f32, 0.2, 0.3],
+                "proof",
+            );
         }
         let matches = engine.query_similar_context(&[0.0, 0.2, 0.3], 3);
         assert!(matches.len() <= 3);
@@ -889,11 +993,25 @@ mod tests {
         use memory::AutoManagedPgVectorEngine;
         let mut engine = AutoManagedPgVectorEngine::new();
         let _ = engine.initialize_hidden_daemon();
-        let _ = engine.store_semantic_context("exact", "target content", vec![1.0, 0.0, 0.0], "proof_exact");
+        let _ = engine.store_semantic_context(
+            "exact",
+            "target content",
+            vec![1.0, 0.0, 0.0],
+            "proof_exact",
+        );
         let matches = engine.query_similar_context(&[1.0, 0.0, 0.0], 1);
         assert_eq!(matches[0].project_id, "exact");
     }
+
+    #[test]
+    fn test_vault_simulated_report_reexport() {
+        use vault::ZeroTrustVault;
+        let mut secrets = std::collections::HashMap::new();
+        secrets.insert("ROOT_KEY".to_string(), "super_secret".to_string());
+        let report: SimulatedVaultReport =
+            ZeroTrustVault::simulate_vault_transaction(&secrets, "pass").unwrap();
+        assert!(report.encryption_successful);
+        assert!(report.zeroization_verified);
+        assert_eq!(report.keys_managed, vec!["ROOT_KEY".to_string()]);
+    }
 }
-
-
-

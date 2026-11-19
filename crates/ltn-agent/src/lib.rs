@@ -1,9 +1,14 @@
 pub mod diagnostics;
 pub mod gate;
 pub mod harness;
+pub mod prompt;
 pub mod registry;
 pub mod router;
 pub mod scheduler;
+pub mod simulator;
+pub mod tickets;
+
+pub use simulator::{DeterministicSimulationReport, DeterministicSimulator};
 
 #[cfg(test)]
 mod tests {
@@ -151,8 +156,16 @@ mod tests {
 
         // Verify Mutate schema requires both target and payload
         let mutate_def = ToolRegistry::get_schema(&AgentToolKind::Mutate);
-        let target_param = mutate_def.parameters.iter().find(|p| p.name == "target").unwrap();
-        let payload_param = mutate_def.parameters.iter().find(|p| p.name == "payload").unwrap();
+        let target_param = mutate_def
+            .parameters
+            .iter()
+            .find(|p| p.name == "target")
+            .unwrap();
+        let payload_param = mutate_def
+            .parameters
+            .iter()
+            .find(|p| p.name == "payload")
+            .unwrap();
         assert!(target_param.required);
         assert_eq!(target_param.param_type, "string");
         assert!(payload_param.required);
@@ -160,8 +173,16 @@ mod tests {
 
         // Verify Read schema requires target, but payload is optional
         let read_def = ToolRegistry::get_schema(&AgentToolKind::Read);
-        let read_target = read_def.parameters.iter().find(|p| p.name == "target").unwrap();
-        let read_payload = read_def.parameters.iter().find(|p| p.name == "payload").unwrap();
+        let read_target = read_def
+            .parameters
+            .iter()
+            .find(|p| p.name == "target")
+            .unwrap();
+        let read_payload = read_def
+            .parameters
+            .iter()
+            .find(|p| p.name == "payload")
+            .unwrap();
         assert!(read_target.required);
         assert!(!read_payload.required);
     }
@@ -192,12 +213,16 @@ mod tests {
         // Non-string target field
         let bad_target = r#"{"tool": "read", "target": true}"#;
         let err = ToolRegistry::parse_and_validate_json(bad_target).unwrap_err();
-        assert!(matches!(err, ToolValidationError::TypeMismatch { field, .. } if field == "target"));
+        assert!(
+            matches!(err, ToolValidationError::TypeMismatch { field, .. } if field == "target")
+        );
 
         // Non-string payload field
         let bad_payload = r#"{"tool": "read", "target": "project", "payload": ["item1", "item2"]}"#;
         let err = ToolRegistry::parse_and_validate_json(bad_payload).unwrap_err();
-        assert!(matches!(err, ToolValidationError::TypeMismatch { field, .. } if field == "payload"));
+        assert!(
+            matches!(err, ToolValidationError::TypeMismatch { field, .. } if field == "payload")
+        );
     }
 
     #[test]
@@ -218,27 +243,42 @@ mod tests {
         // Missing "tool"
         let no_tool = r#"{"target": "demo"}"#;
         let err = ToolRegistry::parse_and_validate_json(no_tool).unwrap_err();
-        assert_eq!(err, ToolValidationError::MissingParameter("tool".to_string()));
+        assert_eq!(
+            err,
+            ToolValidationError::MissingParameter("tool".to_string())
+        );
 
         // Missing "target"
         let no_target = r#"{"tool": "read"}"#;
         let err = ToolRegistry::parse_and_validate_json(no_target).unwrap_err();
-        assert_eq!(err, ToolValidationError::MissingParameter("target".to_string()));
+        assert_eq!(
+            err,
+            ToolValidationError::MissingParameter("target".to_string())
+        );
 
         // Empty whitespace "target"
         let empty_target = r#"{"tool": "read", "target": "   "}"#;
         let err = ToolRegistry::parse_and_validate_json(empty_target).unwrap_err();
-        assert_eq!(err, ToolValidationError::MissingParameter("target".to_string()));
+        assert_eq!(
+            err,
+            ToolValidationError::MissingParameter("target".to_string())
+        );
 
         // Missing required payload for Mutate
         let mutate_no_payload = r#"{"tool": "mutate", "target": "demo"}"#;
         let err = ToolRegistry::parse_and_validate_json(mutate_no_payload).unwrap_err();
-        assert_eq!(err, ToolValidationError::MissingParameter("payload".to_string()));
+        assert_eq!(
+            err,
+            ToolValidationError::MissingParameter("payload".to_string())
+        );
 
         // Missing required payload for Rollback
         let rollback_no_payload = r#"{"tool": "rollback", "target": "demo", "payload": ""}"#;
         let err = ToolRegistry::parse_and_validate_json(rollback_no_payload).unwrap_err();
-        assert_eq!(err, ToolValidationError::MissingParameter("payload".to_string()));
+        assert_eq!(
+            err,
+            ToolValidationError::MissingParameter("payload".to_string())
+        );
     }
 
     #[test]
@@ -464,7 +504,9 @@ mod tests {
             }
             other => panic!("Expected Unsatisfiable error, got {:?}", other),
         }
-        assert!(!DeterministicGate::is_mutation_admissible(&intent, &cluster));
+        assert!(!DeterministicGate::is_mutation_admissible(
+            &intent, &cluster
+        ));
     }
 
     #[test]
@@ -540,7 +582,9 @@ mod tests {
         assert!(gate_res.is_err());
         match gate_res.unwrap_err() {
             SolverError::Unsatisfiable { mus_core } => {
-                assert!(mus_core.iter().any(|s| s.contains("requires Network 50Gbps")));
+                assert!(mus_core
+                    .iter()
+                    .any(|s| s.contains("requires Network 50Gbps")));
             }
             other => panic!("Expected Unsatisfiable error, got {:?}", other),
         }
@@ -571,9 +615,7 @@ mod tests {
         assert!(DeterministicGate::validate_mutation_plan(&valid_intent, &cluster).is_ok());
 
         // Workload 3: invalid (99 cores)
-        let w3 = WorkloadBuilder::new("invalid-batch")
-            .cpu_cores(99)
-            .build();
+        let w3 = WorkloadBuilder::new("invalid-batch").cpu_cores(99).build();
 
         let mixed_intent = create_intent(vec![w1, w3]);
         let gate_res = DeterministicGate::validate_mutation_plan(&mixed_intent, &cluster);
@@ -592,13 +634,15 @@ mod tests {
                 endpoint: "http://localhost:8000/offline".to_string(),
                 model_name: "vllm-model".to_string(),
             },
-            Some(ModelProviderKind::DeepSeek {
-                model_name: "deepseek-r1".to_string(),
+            Some(ModelProviderKind::Anthropic {
+                model_name: "claude-3-5-sonnet".to_string(),
             }),
         );
-        let res = router.route_completion("Analyze architecture", "System Prompt").unwrap();
+        let res = router
+            .route_completion("Analyze architecture", "System Prompt")
+            .unwrap();
         assert!(res.is_fallback);
-        assert_eq!(res.provider_used, "DeepSeek");
+        assert_eq!(res.provider_used, "Anthropic");
     }
 
     #[test]
@@ -636,13 +680,14 @@ mod tests {
     #[test]
     fn test_router_live_gemini_completion_and_token_metering() {
         use router::{ModelProviderKind, UniversalModelRouter};
-        let api_key = match std::env::var("GEMINI_API_KEY").or_else(|_| std::env::var("GOOGLE_API_KEY")) {
-            Ok(k) if !k.is_empty() => k,
-            _ => {
-                println!("Skipping live Gemini test: GEMINI_API_KEY not set in environment");
-                return;
-            }
-        };
+        let api_key =
+            match std::env::var("GEMINI_API_KEY").or_else(|_| std::env::var("GOOGLE_API_KEY")) {
+                Ok(k) if !k.is_empty() => k,
+                _ => {
+                    println!("Skipping live Gemini test: GEMINI_API_KEY not set in environment");
+                    return;
+                }
+            };
 
         let router = UniversalModelRouter::new(
             ModelProviderKind::Gemini {
@@ -653,13 +698,21 @@ mod tests {
 
         let prompt = "Respond with exactly the single word: ROUTER_HEALTH_OK";
         let system_prompt = "You are a health probe.";
-        let res = router.route_completion(prompt, system_prompt).expect("Live Gemini routing should succeed");
+        let res = router
+            .route_completion(prompt, system_prompt)
+            .expect("Live Gemini routing should succeed");
 
         assert_eq!(res.provider_used, "Gemini");
         assert_eq!(res.model_used, "gemini-2.5-flash");
         assert!(!res.is_fallback);
-        assert!(!res.content.is_empty(), "Live Gemini response content must not be empty");
-        assert!(res.tokens_used > 0, "Tokens metered must be strictly positive");
+        assert!(
+            !res.content.is_empty(),
+            "Live Gemini response content must not be empty"
+        );
+        assert!(
+            res.tokens_used > 0,
+            "Tokens metered must be strictly positive"
+        );
 
         // Verify direct invocation with usage metering
         let direct_res = UniversalModelRouter::call_gemini_api_with_usage(
@@ -668,7 +721,10 @@ mod tests {
             "Say ping",
             "System probe",
         );
-        assert!(direct_res.is_ok(), "Direct live Gemini API call should succeed");
+        assert!(
+            direct_res.is_ok(),
+            "Direct live Gemini API call should succeed"
+        );
         let (content, tokens) = direct_res.unwrap();
         assert!(!content.is_empty(), "Direct content must not be empty");
         assert!(tokens > 0, "Direct token metering must be positive");
@@ -678,22 +734,22 @@ mod tests {
     fn test_router_fallback_to_secondary_provider() {
         use router::{ModelProviderKind, UniversalModelRouter};
 
-        // Scenario 1: Primary is unreachable vLLM, fallback is DeepSeek
+        // Scenario 1: Primary is unreachable vLLM, fallback is Anthropic Claude
         let router_vllm = UniversalModelRouter::new(
             ModelProviderKind::LocalVllm {
                 endpoint: "http://127.0.0.1:8000/offline".to_string(),
                 model_name: "vllm-r1".to_string(),
             },
-            Some(ModelProviderKind::DeepSeek {
-                model_name: "deepseek-reasoner".to_string(),
+            Some(ModelProviderKind::Anthropic {
+                model_name: "claude-3-5-sonnet".to_string(),
             }),
         );
         let res_vllm = router_vllm
             .route_completion("Synthesize microservice plan", "System context")
-            .expect("Fallback to DeepSeek should succeed");
+            .expect("Fallback to Anthropic should succeed");
         assert!(res_vllm.is_fallback);
-        assert_eq!(res_vllm.provider_used, "DeepSeek");
-        assert_eq!(res_vllm.model_used, "deepseek-reasoner");
+        assert_eq!(res_vllm.provider_used, "Anthropic");
+        assert_eq!(res_vllm.model_used, "claude-3-5-sonnet");
         assert!(res_vllm.tokens_used > 0);
 
         // Scenario 2: Primary is offline Gemini endpoint, fallback is Anthropic Claude
@@ -712,22 +768,91 @@ mod tests {
         assert_eq!(res_gemini.provider_used, "Anthropic");
         assert_eq!(res_gemini.model_used, "claude-3-5-sonnet");
 
-        // Scenario 3: Primary is unreachable Ollama endpoint, fallback is live Gemini
+        // Scenario 3: Primary is unreachable Ollama endpoint, fallback is Anthropic Claude
         let router_ollama = UniversalModelRouter::new(
             ModelProviderKind::LocalOllama {
                 endpoint: "http://127.0.0.1:11434/unreachable".to_string(),
                 model_name: "llama-3".to_string(),
             },
-            Some(ModelProviderKind::Gemini {
-                model_name: "gemini-2.5-flash".to_string(),
+            Some(ModelProviderKind::Anthropic {
+                model_name: "claude-3-5-sonnet".to_string(),
             }),
         );
         let res_ollama = router_ollama
             .route_completion("Echo PONG", "Probe")
-            .expect("Fallback to live Gemini should succeed");
+            .expect("Fallback should succeed");
         assert!(res_ollama.is_fallback);
-        assert_eq!(res_ollama.provider_used, "Gemini");
+        assert_eq!(res_ollama.provider_used, "Anthropic");
         assert!(res_ollama.tokens_used > 0);
+    }
+
+    #[test]
+    fn test_router_unauthenticated_error_when_no_keys_and_local_offline() {
+        use router::{ModelProviderKind, UniversalModelRouter};
+
+        std::env::set_var("OLLAMA_ENDPOINT", "http://127.0.0.1:58999/unreachable");
+        std::env::remove_var("DEEPSEEK_API_KEY");
+        std::env::remove_var("GEMINI_API_KEY");
+        std::env::remove_var("GOOGLE_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+
+        let router = UniversalModelRouter::new(
+            ModelProviderKind::DeepSeek {
+                model_name: "deepseek-chat".to_string(),
+            },
+            None,
+        );
+
+        let res = router.route_completion("Synthesize architecture", "System");
+        assert!(res.is_err(), "Must return error when unauthenticated and local endpoint unreachable");
+        let err_msg = res.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("LLM_PROVIDER_UNAUTHENTICATED: No valid API key (GEMINI_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY) found and local Ollama is not running."),
+            "Expected honest error message, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_deepseek_http_api_call_and_metering() {
+        use std::io::{Read, Write};
+        use router::UniversalModelRouter;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let handle = std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                let body = "{\"choices\":[{\"message\":{\"content\":\"DeepSeek real API generated architecture\"}}],\"usage\":{\"total_tokens\":85}}";
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+                // Drain socket so client receives response before close
+                let mut drain = [0u8; 512];
+                let _ = stream.read(&mut drain);
+            }
+        });
+
+        let url = format!("http://127.0.0.1:{}/chat/completions", port);
+        let result = UniversalModelRouter::call_openai_compatible_api(
+            &url,
+            Some("sk-deepseek-test-key"),
+            "deepseek-reasoner",
+            "Plan microservice cluster",
+            "You are an architect.",
+        );
+
+        let _ = handle.join();
+        assert!(result.is_ok(), "Real HTTP API call should succeed: {:?}", result.err());
+        let (content, tokens) = result.unwrap();
+        assert_eq!(content, "DeepSeek real API generated architecture");
+        assert_eq!(tokens, 85);
     }
 
     #[test]
@@ -743,7 +868,10 @@ mod tests {
             None,
         );
         let res_vllm = router_vllm.route_completion("Generate topology", "IR context");
-        assert!(res_vllm.is_err(), "Offline LocalVllm must return Err when no fallback exists");
+        assert!(
+            res_vllm.is_err(),
+            "Offline LocalVllm must return Err when no fallback exists"
+        );
         let err_msg = res_vllm.unwrap_err().to_string();
         assert!(err_msg.contains("offline") || err_msg.contains("unreachable"));
 
@@ -756,7 +884,10 @@ mod tests {
             None,
         );
         let res_ollama = router_ollama.route_completion("Synthesize plan", "System");
-        assert!(res_ollama.is_err(), "Unreachable LocalOllama must return Err when no fallback exists");
+        assert!(
+            res_ollama.is_err(),
+            "Unreachable LocalOllama must return Err when no fallback exists"
+        );
         let err_msg = res_ollama.unwrap_err().to_string();
         assert!(err_msg.contains("offline") || err_msg.contains("unreachable"));
 
@@ -769,7 +900,10 @@ mod tests {
             None,
         );
         let res_custom = router_custom.route_completion("Plan cluster", "System");
-        assert!(res_custom.is_err(), "Unreachable CustomOpenAiCompatible must return Err when no fallback exists");
+        assert!(
+            res_custom.is_err(),
+            "Unreachable CustomOpenAiCompatible must return Err when no fallback exists"
+        );
 
         // Scenario 4: Gemini with offline model designation and no fallback -> returns Err
         let router_gemini = UniversalModelRouter::new(
@@ -779,7 +913,10 @@ mod tests {
             None,
         );
         let res_gemini = router_gemini.route_completion("Probe status", "System");
-        assert!(res_gemini.is_err(), "Offline Gemini endpoint must return Err when no fallback exists");
+        assert!(
+            res_gemini.is_err(),
+            "Offline Gemini endpoint must return Err when no fallback exists"
+        );
 
         // Scenario 5: Direct Gemini API invocation with invalid API key -> returns Err
         let res_direct_invalid = UniversalModelRouter::call_gemini_api(
@@ -788,6 +925,9 @@ mod tests {
             "Health probe",
             "",
         );
-        assert!(res_direct_invalid.is_err(), "Call to Gemini with invalid API key must fail");
+        assert!(
+            res_direct_invalid.is_err(),
+            "Call to Gemini with invalid API key must fail"
+        );
     }
 }

@@ -1,12 +1,14 @@
 pub mod actuators;
 pub mod auth;
 
+pub use actuators::DeterministicContainerActuator;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use actuators::{
-        AwsActuator, AzureActuator, BareMetalActuator, DockerActuator, DockerNetworkDriver,
-        GcpActuator, LocalOsActuator,
+        AwsActuator, AzureActuator, BareMetalActuator, DeterministicContainerActuator,
+        DockerActuator, DockerNetworkDriver, GcpActuator, LocalOsActuator,
     };
     use auth::{AuthChecker, AuthStatus, ProviderAuthError};
     use std::sync::Mutex;
@@ -19,10 +21,7 @@ mod tests {
 
     impl EnvRestorer {
         fn new(keys: &[&'static str]) -> Self {
-            let vars = keys
-                .iter()
-                .map(|&k| (k, std::env::var(k).ok()))
-                .collect();
+            let vars = keys.iter().map(|&k| (k, std::env::var(k).ok())).collect();
             Self { vars }
         }
     }
@@ -210,7 +209,11 @@ mod tests {
     #[test]
     fn test_auth_detection_azure_blocked() {
         let _guard = ENV_MUTEX.lock().unwrap();
-        let _restorer = EnvRestorer::new(&["AZURE_SUBSCRIPTION_ID", "AZURE_CLIENT_ID", "AZURE_ENDPOINT_URL"]);
+        let _restorer = EnvRestorer::new(&[
+            "AZURE_SUBSCRIPTION_ID",
+            "AZURE_CLIENT_ID",
+            "AZURE_ENDPOINT_URL",
+        ]);
 
         std::env::remove_var("AZURE_SUBSCRIPTION_ID");
         std::env::remove_var("AZURE_CLIENT_ID");
@@ -247,7 +250,8 @@ mod tests {
 
     #[test]
     fn test_docker_actuator_bridge_network() {
-        let net = DockerActuator::create_standard_network("ltn-bridge-net", DockerNetworkDriver::Bridge);
+        let net =
+            DockerActuator::create_standard_network("ltn-bridge-net", DockerNetworkDriver::Bridge);
         assert_eq!(net.network_name, "ltn-bridge-net");
         assert_eq!(net.driver, DockerNetworkDriver::Bridge);
         assert_eq!(net.subnet, "172.28.0.0/16");
@@ -256,7 +260,10 @@ mod tests {
 
     #[test]
     fn test_docker_actuator_overlay_network() {
-        let net = DockerActuator::create_standard_network("ltn-overlay-net", DockerNetworkDriver::Overlay);
+        let net = DockerActuator::create_standard_network(
+            "ltn-overlay-net",
+            DockerNetworkDriver::Overlay,
+        );
         assert_eq!(net.network_name, "ltn-overlay-net");
         assert_eq!(net.driver, DockerNetworkDriver::Overlay);
         assert_eq!(net.subnet, "172.28.0.0/16");
@@ -270,40 +277,75 @@ mod tests {
             DockerNetworkDriver::Custom("macvlan".to_string()),
         );
         assert_eq!(net.network_name, "ltn-custom-net");
-        assert_eq!(net.driver, DockerNetworkDriver::Custom("macvlan".to_string()));
+        assert_eq!(
+            net.driver,
+            DockerNetworkDriver::Custom("macvlan".to_string())
+        );
     }
 
     #[test]
     fn test_docker_container_deployment_default_network() {
         let res = DockerActuator::deploy_container("redis:alpine", "cache-node", "6379:6379");
-        assert!(res.container_id.starts_with("doc-"));
-        assert_eq!(res.network_attached, "ltn-bridge");
-        assert!(res.status.contains("cache-node"));
-        assert!(res.status.contains("redis:alpine"));
-        assert!(res.status.contains("6379:6379"));
+        if DockerActuator::is_docker_available() {
+            let res = res.expect("Docker deployment should succeed when daemon is online");
+            assert!(res.container_id.starts_with("doc-") || !res.container_id.is_empty());
+            assert_eq!(res.network_attached, "ltn-bridge");
+            assert!(res.status.contains("cache-node"));
+            assert!(res.status.contains("redis:alpine"));
+            assert!(res.status.contains("6379:6379"));
+        } else {
+            assert!(res.is_err(), "Must return Err when Docker daemon is offline");
+            let err = res.unwrap_err();
+            assert!(
+                err.contains("Docker daemon is offline"),
+                "Error should indicate Docker daemon is offline, got: {}",
+                err
+            );
+        }
     }
 
     #[test]
     fn test_docker_container_deployment_custom_network() {
-        let net = DockerActuator::create_standard_network("ltn-custom-net", DockerNetworkDriver::Bridge);
+        let net =
+            DockerActuator::create_standard_network("ltn-custom-net", DockerNetworkDriver::Bridge);
         let res = DockerActuator::deploy_container_on_network(
             "nginx:alpine",
             "web-gateway",
             "8080:80",
             &net.network_name,
         );
-        assert!(res.container_id.starts_with("doc-"));
-        assert_eq!(res.network_attached, "ltn-custom-net");
-        assert!(res.status.contains("web-gateway"));
-        assert!(res.status.contains("nginx:alpine"));
-        assert!(res.status.contains("8080:80"));
+        if DockerActuator::is_docker_available() {
+            let res = res.expect("Docker deployment should succeed when daemon is online");
+            assert!(res.container_id.starts_with("doc-") || !res.container_id.is_empty());
+            assert_eq!(res.network_attached, "ltn-custom-net");
+            assert!(res.status.contains("web-gateway"));
+            assert!(res.status.contains("nginx:alpine"));
+            assert!(res.status.contains("8080:80"));
+        } else {
+            assert!(res.is_err(), "Must return Err when Docker daemon is offline");
+            let err = res.unwrap_err();
+            assert!(
+                err.contains("Docker daemon is offline"),
+                "Error should indicate Docker daemon is offline, got: {}",
+                err
+            );
+        }
     }
 
     #[test]
     fn test_docker_container_id_uniqueness() {
         let c1 = DockerActuator::deploy_container("alpine:latest", "c1", "8001:80");
         let c2 = DockerActuator::deploy_container("alpine:latest", "c2", "8002:80");
-        assert_ne!(c1.container_id, c2.container_id);
+        if DockerActuator::is_docker_available() {
+            let c1 = c1.unwrap();
+            let c2 = c2.unwrap();
+            assert_ne!(c1.container_id, c2.container_id);
+        } else {
+            assert!(c1.is_err());
+            assert!(c2.is_err());
+            assert!(c1.unwrap_err().contains("Docker daemon is offline"));
+            assert!(c2.unwrap_err().contains("Docker daemon is offline"));
+        }
     }
 
     // ==========================================
@@ -362,7 +404,11 @@ mod tests {
     #[test]
     fn test_azure_actuator_contract_blocked() {
         let _guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let _restorer = EnvRestorer::new(&["AZURE_SUBSCRIPTION_ID", "AZURE_CLIENT_ID", "AZURE_ENDPOINT_URL"]);
+        let _restorer = EnvRestorer::new(&[
+            "AZURE_SUBSCRIPTION_ID",
+            "AZURE_CLIENT_ID",
+            "AZURE_ENDPOINT_URL",
+        ]);
         std::env::remove_var("AZURE_SUBSCRIPTION_ID");
         std::env::remove_var("AZURE_CLIENT_ID");
         std::env::remove_var("AZURE_ENDPOINT_URL");
@@ -489,22 +535,40 @@ mod tests {
 
     #[test]
     fn test_bare_metal_actuator_provisioning() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let _restorer = EnvRestorer::new(&["LTN_SSH_USER", "LTN_SSH_KEY"]);
+        std::env::remove_var("LTN_SSH_USER");
+        std::env::remove_var("LTN_SSH_KEY");
+
         let res = BareMetalActuator::provision_node("192.168.1.50");
         assert_eq!(res.node_ip, "192.168.1.50");
-        assert!(res.status.contains("192.168.1.50"));
-        assert!(res.status.contains("provisioned via systemd/SSH"));
+        assert_eq!(res.status, "BLOCKED_SSH_UNAUTHENTICATED");
+        assert_eq!(res.reachability, "UNREACHABLE_NO_CREDENTIALS");
+        assert!(res.systemd_unit_staged.is_some());
+
+        let local_res = BareMetalActuator::provision_node("127.0.0.1");
+        assert_eq!(local_res.node_ip, "127.0.0.1");
+        assert_eq!(local_res.reachability, "ONLINE_REACHABLE");
+        assert!(local_res.status.contains("127.0.0.1"));
+        assert!(local_res.status.contains("provisioned via systemd"));
     }
 
     #[test]
     fn test_bare_metal_actuator_discovery() {
-        std::env::set_var("LTN_BARE_METAL_TOPOLOGY", "D:/.ltn-graph/non_existent_fallback_sysinfo.json");
+        std::env::set_var(
+            "LTN_BARE_METAL_TOPOLOGY",
+            "D:/.ltn-graph/non_existent_fallback_sysinfo.json",
+        );
         let report = BareMetalActuator::discover_nodes();
         assert_eq!(report.status, "DISCOVERY_COMPLETE");
         assert_eq!(report.total_nodes, report.discovered_nodes.len());
         assert!(!report.discovered_nodes.is_empty());
 
         let node0 = &report.discovered_nodes[0];
-        assert_ne!(node0.node_id, "bm-node-01", "Must not return fake static bm-node-01");
+        assert_ne!(
+            node0.node_id, "bm-node-01",
+            "Must not return fake static bm-node-01"
+        );
         assert!(node0.cpu_cores > 0, "Discovered CPU cores must be > 0");
         assert!(node0.memory_mb > 0, "Discovered RAM must be > 0");
         assert_eq!(node0.status, "ONLINE");
@@ -523,6 +587,11 @@ mod tests {
 
     #[test]
     fn test_bare_metal_actuator_discover_single_node() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let _restorer = EnvRestorer::new(&["LTN_SSH_USER", "LTN_SSH_KEY"]);
+        std::env::remove_var("LTN_SSH_USER");
+        std::env::remove_var("LTN_SSH_KEY");
+
         // Local node probe
         let node = BareMetalActuator::discover_node("127.0.0.1");
         assert!(node.node_id.starts_with("bm-"));
@@ -531,10 +600,125 @@ mod tests {
         assert!(node.memory_mb > 0);
         assert_eq!(node.status, "HEALTHY");
 
-        // Remote unreachable node probe
+        // Remote unauthenticated node probe
         let dead_node = BareMetalActuator::discover_node("192.0.2.1");
-        assert_eq!(dead_node.status, "UNREACHABLE");
+        assert_eq!(dead_node.status, "BLOCKED_SSH_UNAUTHENTICATED");
         assert_eq!(dead_node.cpu_cores, 0);
         assert_eq!(dead_node.memory_mb, 0);
+    }
+
+    // ==========================================================
+    // DeterministicContainerActuator Integration & Unit Tests
+    // ==========================================================
+
+    #[test]
+    fn test_deterministic_container_actuator_lifecycle() {
+        use ltn_container::runtime::ContainerStatus;
+        use ltn_core::ir::{
+            ComputeRequirements, NetworkRequirements, ReplicaPolicy, StorageRequirements,
+            WorkloadDefinition, WorkloadKind,
+        };
+
+        let mut actuator = DeterministicContainerActuator::new();
+        assert_eq!(actuator.list_containers().len(), 0);
+
+        let workload = WorkloadDefinition {
+            id: uuid::Uuid::new_v4(),
+            name: "deterministic-payment-svc".to_string(),
+            kind: WorkloadKind::GenericContainer,
+            container_image: "payment:v2".to_string(),
+            entrypoint: None,
+            ports: vec![],
+            secrets: vec![],
+            compute: ComputeRequirements {
+                cpu_cores: 4,
+                ram_mb: 4096,
+                gpu_count: 0,
+                vram_mb: 0,
+                gpu_model_preference: None,
+            },
+            storage: StorageRequirements::default(),
+            network: NetworkRequirements::default(),
+            replicas: ReplicaPolicy::default(),
+            placement: Default::default(),
+        };
+
+        // Launch workload
+        let launch_res = actuator.launch_workload(&workload);
+        let container = launch_res.expect("Launch must succeed via Docker or native sandbox");
+        assert_eq!(container.name, "deterministic-payment-svc");
+        assert_eq!(container.cpu_cores, 4);
+        assert_eq!(container.ram_mb, 4096);
+        assert_eq!(container.status, ContainerStatus::Running);
+        assert!(!container.state_hash.is_empty());
+
+        // Verify container state
+        let status = actuator
+            .verify_container_state(&container.id)
+            .expect("Verification must succeed");
+        assert_eq!(status, ContainerStatus::Running);
+        assert!(actuator.is_running(&container.id));
+
+        // Verify workload state hash match
+        assert!(actuator.verify_workload_state(&workload).unwrap());
+
+        // Verify cluster hash non-empty
+        let cluster_hash = actuator.verify_cluster_hash();
+        assert_eq!(cluster_hash.len(), 64);
+
+        // Stop container
+        actuator
+            .stop_container(&container.id)
+            .expect("Stop must succeed");
+        let stopped_status = actuator
+            .verify_container_state(&container.id)
+            .expect("Status after stop");
+        assert_eq!(stopped_status, ContainerStatus::Stopped);
+        assert!(actuator.is_stopped(&container.id));
+    }
+
+    #[test]
+    fn test_deterministic_container_actuator_deploy_result_and_state() {
+        use ltn_container::runtime::ContainerStatus;
+        use ltn_core::ir::{
+            ComputeRequirements, NetworkRequirements, ReplicaPolicy, StorageRequirements,
+            WorkloadDefinition, WorkloadKind,
+        };
+
+        let mut actuator = DeterministicContainerActuator::new();
+        let workload = WorkloadDefinition {
+            id: uuid::Uuid::new_v4(),
+            name: "event-indexer".to_string(),
+            kind: WorkloadKind::GoWorker,
+            container_image: "indexer:latest".to_string(),
+            entrypoint: None,
+            ports: vec![],
+            secrets: vec![],
+            compute: ComputeRequirements {
+                cpu_cores: 2,
+                ram_mb: 1024,
+                gpu_count: 0,
+                vram_mb: 0,
+                gpu_model_preference: None,
+            },
+            storage: StorageRequirements::default(),
+            network: NetworkRequirements::default(),
+            replicas: ReplicaPolicy::default(),
+            placement: Default::default(),
+        };
+
+        let res = actuator.deploy_workload(&workload).expect("Deploy must succeed");
+        assert_eq!(res.container_id, workload.id);
+        assert_eq!(res.name, "event-indexer");
+        assert_eq!(res.cpu_cores, 2);
+        assert_eq!(res.ram_mb, 1024);
+        assert_eq!(res.status, ContainerStatus::Running);
+        assert!(res.verified);
+
+        let verification = actuator
+            .verify_container_state_detailed(&workload.id)
+            .unwrap();
+        assert!(verification.is_valid);
+        assert_eq!(verification.status, ContainerStatus::Running);
     }
 }

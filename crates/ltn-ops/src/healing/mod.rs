@@ -1,2 +1,2 @@
 pub mod replan;
-pub use replan::{ReplanEngine, SelfHealingAction};
+pub use replan::{RemediationTarget, ReplanEngine, SelfHealingAction};

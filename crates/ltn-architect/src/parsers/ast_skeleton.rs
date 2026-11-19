@@ -61,7 +61,10 @@ impl CodebaseSkeletonizer {
                 let path = entry.path();
                 let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-                if file_name.starts_with('.') || file_name == "target" || file_name == "node_modules" {
+                if file_name.starts_with('.')
+                    || file_name == "target"
+                    || file_name == "node_modules"
+                {
                     continue;
                 }
 
@@ -69,7 +72,10 @@ impl CodebaseSkeletonizer {
                     let _ = Self::walk_and_skeletonize(&path, files_count, lines_count, symbols);
                 } else if path.is_file() {
                     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-                    if matches!(ext, "rs" | "py" | "go" | "ts" | "js" | "java" | "cpp" | "toml" | "json") {
+                    if matches!(
+                        ext,
+                        "rs" | "py" | "go" | "ts" | "js" | "java" | "cpp" | "toml" | "json"
+                    ) {
                         *files_count += 1;
                         if let Ok(content) = fs::read_to_string(&path) {
                             let lines = content.lines().count();

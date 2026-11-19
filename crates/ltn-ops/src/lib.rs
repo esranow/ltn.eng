@@ -1,7 +1,14 @@
+pub mod canary;
 pub mod chaos;
+pub mod diagnosis;
 pub mod healing;
 pub mod mcp;
+pub mod mesh;
 pub mod observer;
+pub mod reconciliation;
+
+pub use canary::SimulatedRolloutReport;
+pub use reconciliation::{AutonomousProductionOverseer, OverseerCycleResult};
 
 #[cfg(test)]
 mod tests {
@@ -37,17 +44,24 @@ mod tests {
         assert!(resp.error.is_none());
 
         let result = resp.result.expect("Expected result in initialize response");
-        assert_eq!(result.get("protocolVersion").and_then(|v| v.as_str()), Some("2024-11-05"));
+        assert_eq!(
+            result.get("protocolVersion").and_then(|v| v.as_str()),
+            Some("2024-11-05")
+        );
         assert_eq!(
             result.pointer("/serverInfo/name").and_then(|v| v.as_str()),
             Some("ltn-eng")
         );
         assert_eq!(
-            result.pointer("/serverInfo/version").and_then(|v| v.as_str()),
+            result
+                .pointer("/serverInfo/version")
+                .and_then(|v| v.as_str()),
             Some("1.0.0")
         );
         assert_eq!(
-            result.pointer("/capabilities/tools/listChanged").and_then(|v| v.as_bool()),
+            result
+                .pointer("/capabilities/tools/listChanged")
+                .and_then(|v| v.as_bool()),
             Some(false)
         );
     }
@@ -100,24 +114,50 @@ mod tests {
     #[test]
     fn test_agy_mcp_config_json_compliance() {
         let config_path = Path::new("C:/Users/Hp/.gemini/config/mcp_config.json");
-        assert!(config_path.exists(), "MCP config file must exist at C:\\Users\\Hp\\.gemini\\config\\mcp_config.json");
+        assert!(
+            config_path.exists(),
+            "MCP config file must exist at C:\\Users\\Hp\\.gemini\\config\\mcp_config.json"
+        );
 
         let raw = std::fs::read_to_string(config_path).expect("Failed to read mcp_config.json");
         let clean_raw = raw.trim_start_matches('\u{feff}');
-        let val: serde_json::Value = serde_json::from_str(clean_raw).expect("mcp_config.json must be valid JSON");
+        let val: serde_json::Value =
+            serde_json::from_str(clean_raw).expect("mcp_config.json must be valid JSON");
 
-        let server_cfg = val.pointer("/mcpServers/ltn-eng")
+        let server_cfg = val
+            .pointer("/mcpServers/ltn-eng")
             .expect("mcpServers must contain 'ltn-eng' entry");
 
-        let command = server_cfg.get("command").and_then(|v| v.as_str()).expect("command must be present");
-        assert!(command.ends_with("ltn.exe"), "command should execute ltn.exe");
+        let command = server_cfg
+            .get("command")
+            .and_then(|v| v.as_str())
+            .expect("command must be present");
+        assert!(
+            command.ends_with("ltn.exe"),
+            "command should execute ltn.exe"
+        );
 
-        let args = server_cfg.get("args").and_then(|v| v.as_array()).expect("args must be an array");
-        assert!(args.iter().any(|a| a.as_str() == Some("mcp")), "args must include 'mcp'");
+        let args = server_cfg
+            .get("args")
+            .and_then(|v| v.as_array())
+            .expect("args must be an array");
+        assert!(
+            args.iter().any(|a| a.as_str() == Some("mcp")),
+            "args must include 'mcp'"
+        );
 
-        let env = server_cfg.get("env").and_then(|v| v.as_object()).expect("env must be an object");
-        assert!(env.contains_key("GEMINI_API_KEY"), "env must define GEMINI_API_KEY");
-        assert!(env.contains_key("AWS_ENDPOINT_URL"), "env must define AWS_ENDPOINT_URL");
+        let env = server_cfg
+            .get("env")
+            .and_then(|v| v.as_object())
+            .expect("env must be an object");
+        assert!(
+            env.contains_key("GEMINI_API_KEY"),
+            "env must define GEMINI_API_KEY"
+        );
+        assert!(
+            env.contains_key("AWS_ENDPOINT_URL"),
+            "env must define AWS_ENDPOINT_URL"
+        );
     }
 
     // =========================================================================
@@ -138,8 +178,11 @@ mod tests {
         assert!(resp.error.is_none());
 
         let result = resp.result.expect("Expected result in tools/list response");
-        let tools = result.get("tools").and_then(|v| v.as_array()).expect("Expected tools array");
-        assert_eq!(tools.len(), 9, "Server must expose exactly 9 tools");
+        let tools = result
+            .get("tools")
+            .and_then(|v| v.as_array())
+            .expect("Expected tools array");
+        assert_eq!(tools.len(), 28, "Server must expose exactly 28 tools");
 
         let expected_tools = [
             ("ltn_doctor", false, &[] as &[&str]),
@@ -151,6 +194,34 @@ mod tests {
             ("ltn_rollback", false, &[]),
             ("ltn_config", false, &[]),
             ("map_mtl_topology", false, &[]),
+            ("ltn_observe", false, &[]),
+            ("ltn_validate", false, &[]),
+            ("ltn_plan", false, &[]),
+            ("ltn_canary", false, &[]),
+            ("ltn_diagnose", false, &[]),
+            ("ltn_replan", false, &[]),
+            ("ltn_reconcile", false, &[]),
+            ("ltn_mesh", false, &[]),
+            ("ltn_vault", true, &["key", "value"]),
+            ("ltn_sched", false, &[]),
+            ("ltn_tune", false, &[]),
+            ("ltn_metrics", false, &[]),
+            ("ltn_provision", false, &[]),
+            ("ltn_chaos", false, &[]),
+            ("ltn_architect_synthesize", false, &[]),
+            ("ltn_deploy_direct", false, &[]),
+            ("ltn_overseer_cycle", false, &[]),
+            (
+                "ltn_lock_regression",
+                true,
+                &[
+                    "incident_id",
+                    "incident_type",
+                    "description",
+                    "target_workload",
+                ] as &[&str],
+            ),
+            ("ltn_verify_regression_locks", false, &[]),
         ];
 
         for (name, has_required, req_fields) in expected_tools {
@@ -159,10 +230,20 @@ mod tests {
                 .find(|t| t.get("name").and_then(|n| n.as_str()) == Some(name))
                 .unwrap_or_else(|| panic!("Tool '{}' not found in tools/list", name));
 
-            let desc = tool.get("description").and_then(|d| d.as_str()).expect("description must be string");
-            assert!(!desc.is_empty(), "Tool '{}' must have non-empty description", name);
+            let desc = tool
+                .get("description")
+                .and_then(|d| d.as_str())
+                .expect("description must be string");
+            assert!(
+                !desc.is_empty(),
+                "Tool '{}' must have non-empty description",
+                name
+            );
 
-            let schema = tool.get("inputSchema").and_then(|s| s.as_object()).expect("inputSchema must be object");
+            let schema = tool
+                .get("inputSchema")
+                .and_then(|s| s.as_object())
+                .expect("inputSchema must be object");
             assert_eq!(
                 schema.get("type").and_then(|v| v.as_str()),
                 Some("object"),
@@ -170,7 +251,10 @@ mod tests {
                 name
             );
             assert!(
-                schema.get("properties").and_then(|p| p.as_object()).is_some(),
+                schema
+                    .get("properties")
+                    .and_then(|p| p.as_object())
+                    .is_some(),
                 "Tool '{}' properties must be an object",
                 name
             );
@@ -213,13 +297,22 @@ mod tests {
         assert!(resp.error.is_none());
 
         let res_val = resp.result.unwrap();
-        assert_eq!(res_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let text = res_val["content"][0]["text"].as_str().unwrap();
         let doc: serde_json::Value = serde_json::from_str(text).unwrap();
 
         assert_eq!(doc.get("status").and_then(|s| s.as_str()), Some("HEALTHY"));
-        assert_eq!(doc.get("sandbox").and_then(|s| s.as_str()), Some("OPERATIONAL"));
-        assert_eq!(doc.get("constraint_prover").and_then(|s| s.as_str()), Some("READY"));
+        assert_eq!(
+            doc.get("sandbox").and_then(|s| s.as_str()),
+            Some("OPERATIONAL")
+        );
+        assert_eq!(
+            doc.get("constraint_prover").and_then(|s| s.as_str()),
+            Some("READY")
+        );
         assert!(doc.get("providers").and_then(|p| p.as_object()).is_some());
     }
 
@@ -242,10 +335,17 @@ mod tests {
         assert!(resp.error.is_none());
 
         let res_val = resp.result.unwrap();
-        assert_eq!(res_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let text = res_val["content"][0]["text"].as_str().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
-        assert!(parsed.get("workload_name").is_some() || parsed.get("min_cpu_cores").is_some() || parsed.is_object());
+        assert!(
+            parsed.get("workload_name").is_some()
+                || parsed.get("min_cpu_cores").is_some()
+                || parsed.is_object()
+        );
     }
 
     #[test]
@@ -267,7 +367,10 @@ mod tests {
         assert!(resp.error.is_none());
 
         let res_val = resp.result.unwrap();
-        assert_eq!(res_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let text = res_val["content"][0]["text"].as_str().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
         assert!(parsed.is_array() || parsed.is_object());
@@ -293,13 +396,26 @@ mod tests {
         assert!(resp.error.is_none());
 
         let res_val = resp.result.unwrap();
-        assert_eq!(res_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let text = res_val["content"][0]["text"].as_str().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
 
-        assert_eq!(parsed.get("status").and_then(|s| s.as_str()), Some("DEPLOYED"));
-        assert_eq!(parsed.get("verification").and_then(|s| s.as_str()), Some("PASSED"));
-        assert!(parsed.get("container_id").and_then(|s| s.as_str()).unwrap().starts_with("doc-"));
+        assert_eq!(
+            parsed.get("status").and_then(|s| s.as_str()),
+            Some("DEPLOYED")
+        );
+        assert_eq!(
+            parsed.get("verification").and_then(|s| s.as_str()),
+            Some("PASSED")
+        );
+        assert!(parsed
+            .get("container_id")
+            .and_then(|s| s.as_str())
+            .unwrap()
+            .starts_with("doc-"));
     }
 
     #[test]
@@ -321,14 +437,29 @@ mod tests {
         assert!(resp.error.is_none());
 
         let res_val = resp.result.unwrap();
-        assert_eq!(res_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let text = res_val["content"][0]["text"].as_str().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
 
-        assert!(parsed.get("socket_probes").and_then(|p| p.as_array()).is_some());
-        assert!(parsed.get("process_probes").and_then(|p| p.as_array()).is_some());
-        assert!(parsed.get("http_probes").and_then(|p| p.as_array()).is_some());
-        assert_eq!(parsed.get("drift_detected").and_then(|d| d.as_bool()), Some(false));
+        assert!(parsed
+            .get("socket_probes")
+            .and_then(|p| p.as_array())
+            .is_some());
+        assert!(parsed
+            .get("process_probes")
+            .and_then(|p| p.as_array())
+            .is_some());
+        assert!(parsed
+            .get("http_probes")
+            .and_then(|p| p.as_array())
+            .is_some());
+        assert_eq!(
+            parsed.get("drift_detected").and_then(|d| d.as_bool()),
+            Some(false)
+        );
     }
 
     #[test]
@@ -347,10 +478,16 @@ mod tests {
         let snap_resp = McpServer::handle_request(&snap_req);
         assert_eq!(snap_resp.id, serde_json::json!("snap-1"));
         let snap_val = snap_resp.result.unwrap();
-        assert_eq!(snap_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            snap_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let snap_text = snap_val["content"][0]["text"].as_str().unwrap();
         let snap_parsed: serde_json::Value = serde_json::from_str(snap_text).unwrap();
-        assert_eq!(snap_parsed.get("status").and_then(|s| s.as_str()), Some("SNAPSHOT_RECORDED"));
+        assert_eq!(
+            snap_parsed.get("status").and_then(|s| s.as_str()),
+            Some("SNAPSHOT_RECORDED")
+        );
         assert!(snap_parsed.get("hash").and_then(|h| h.as_str()).is_some());
 
         // Rollback
@@ -370,7 +507,10 @@ mod tests {
         assert_eq!(rb_val.get("isError").and_then(|b| b.as_bool()), Some(false));
         let rb_text = rb_val["content"][0]["text"].as_str().unwrap();
         let rb_parsed: serde_json::Value = serde_json::from_str(rb_text).unwrap();
-        assert_eq!(rb_parsed.get("status").and_then(|s| s.as_str()), Some("RESTORED"));
+        assert_eq!(
+            rb_parsed.get("status").and_then(|s| s.as_str()),
+            Some("RESTORED")
+        );
     }
 
     #[test]
@@ -394,11 +534,16 @@ mod tests {
         assert!(resp.error.is_none());
 
         let res_val = resp.result.unwrap();
-        assert_eq!(res_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let text = res_val["content"][0]["text"].as_str().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
         assert_eq!(
-            parsed.pointer("/provider/default_provider").and_then(|p| p.as_str()),
+            parsed
+                .pointer("/provider/default_provider")
+                .and_then(|p| p.as_str()),
             Some("LOCAL_DOCKER")
         );
         assert_eq!(
@@ -424,13 +569,25 @@ mod tests {
         assert!(resp.error.is_none());
 
         let res_val = resp.result.unwrap();
-        assert_eq!(res_val.get("isError").and_then(|b| b.as_bool()), Some(false));
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
         let text = res_val["content"][0]["text"].as_str().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
 
         assert!(parsed.get("cpu_count").and_then(|c| c.as_u64()).unwrap() > 0);
-        assert!(parsed.get("total_memory_mb").and_then(|m| m.as_u64()).unwrap() > 0);
-        assert_eq!(parsed.get("hardware_status").and_then(|s| s.as_str()), Some("OPERATIONAL"));
+        assert!(
+            parsed
+                .get("total_memory_mb")
+                .and_then(|m| m.as_u64())
+                .unwrap()
+                > 0
+        );
+        assert_eq!(
+            parsed.get("hardware_status").and_then(|s| s.as_str()),
+            Some("OPERATIONAL")
+        );
     }
 
     #[test]
@@ -475,7 +632,11 @@ mod tests {
             assert!(resp.result.is_none());
 
             let err = resp.error.expect("Expected McpError for invalid JSON");
-            assert_eq!(err.code, -32700, "Error code must be -32700 Parse error for payload: {}", payload);
+            assert_eq!(
+                err.code, -32700,
+                "Error code must be -32700 Parse error for payload: {}",
+                payload
+            );
             assert!(err.message.starts_with("Parse error"));
         }
     }
@@ -497,7 +658,11 @@ mod tests {
             assert!(resp.result.is_none());
 
             let err = resp.error.expect("Expected McpError for invalid method");
-            assert_eq!(err.code, -32601, "Error code must be -32601 for method: {}", method);
+            assert_eq!(
+                err.code, -32601,
+                "Error code must be -32601 for method: {}",
+                method
+            );
             assert!(err.message.contains("not found"));
         }
     }
@@ -538,7 +703,9 @@ mod tests {
             })),
         };
         let resp3 = McpServer::handle_request(&req_no_name);
-        let err3 = resp3.error.expect("Expected error for missing name in params");
+        let err3 = resp3
+            .error
+            .expect("Expected error for missing name in params");
         assert_eq!(err3.code, -32602);
         assert!(err3.message.contains("Missing or invalid 'name'"));
 
@@ -553,7 +720,9 @@ mod tests {
             })),
         };
         let resp4 = McpServer::handle_request(&req_blank_name);
-        let err4 = resp4.error.expect("Expected error for blank name in params");
+        let err4 = resp4
+            .error
+            .expect("Expected error for blank name in params");
         assert_eq!(err4.code, -32602);
     }
 
@@ -561,31 +730,83 @@ mod tests {
     // 5. Empirical Observer Socket Probes, Chronos Chaos Faults, Self-Healing Replanner
     // =========================================================================
 
+    fn with_mock_endpoint<F: FnOnce()>(f: F) {
+        use std::io::Write;
+        use std::net::TcpListener;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let running = Arc::new(AtomicBool::new(true));
+        let r_clone = running.clone();
+
+        let listener = TcpListener::bind("127.0.0.1:4566");
+        let handle = listener.ok().map(|l| {
+            l.set_nonblocking(true).ok();
+            std::thread::spawn(move || {
+                while r_clone.load(Ordering::Relaxed) {
+                    if let Ok((mut stream, _)) = l.accept() {
+                        use std::io::Read;
+                        let mut buf = [0u8; 1024];
+                        let _ = stream.read(&mut buf);
+                        let _ = stream.write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK",
+                        );
+                        let _ = stream.flush();
+                        let _ = stream.shutdown(std::net::Shutdown::Write);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+            })
+        });
+
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        f();
+
+        running.store(false, Ordering::Relaxed);
+        if let Some(h) = handle {
+            let _ = h.join();
+        }
+    }
+
     #[test]
     fn test_empirical_observer_socket_probes() {
-        let telemetry = EmpiricalObserver::probe_system("http://127.0.0.1:4566/health");
+        with_mock_endpoint(|| {
+            let telemetry = EmpiricalObserver::probe_system("http://127.0.0.1:4566/health");
 
-        // Socket probe assertions
-        assert!(!telemetry.socket_probes.is_empty(), "Socket probes must not be empty");
-        let sock = &telemetry.socket_probes[0];
-        assert_eq!(sock.address, "127.0.0.1:4566");
-        assert!(sock.reachable, "Socket must be reachable");
-        assert!(sock.latency_ms >= 0.0, "Latency must be non-negative");
+            // Socket probe assertions
+            assert!(
+                !telemetry.socket_probes.is_empty(),
+                "Socket probes must not be empty"
+            );
+            let sock = &telemetry.socket_probes[0];
+            assert_eq!(sock.address, "127.0.0.1:4566");
+            assert!(sock.reachable, "Socket must be reachable");
+            assert!(sock.latency_ms >= 0.0, "Latency must be non-negative");
 
-        // Process probe assertions
-        assert!(!telemetry.process_probes.is_empty(), "Process probes must not be empty");
-        let proc = &telemetry.process_probes[0];
-        assert!(proc.running);
+            // Process probe assertions
+            assert!(
+                !telemetry.process_probes.is_empty(),
+                "Process probes must not be empty"
+            );
+            let proc = &telemetry.process_probes[0];
+            assert!(proc.running);
 
-        // HTTP probe assertions
-        assert!(!telemetry.http_probes.is_empty(), "HTTP probes must not be empty");
-        let http = &telemetry.http_probes[0];
-        assert_eq!(http.url, "http://127.0.0.1:4566/health");
-        assert_eq!(http.status_code, 200);
-        assert!(http.latency_ms >= 0.0);
+            // HTTP probe assertions
+            assert!(
+                !telemetry.http_probes.is_empty(),
+                "HTTP probes must not be empty"
+            );
+            let http = &telemetry.http_probes[0];
+            assert_eq!(http.url, "http://127.0.0.1:4566/health");
+            assert_eq!(http.status_code, 200);
+            assert!(http.latency_ms >= 0.0);
 
-        // Initial baseline drift
-        assert!(!telemetry.drift_detected, "Initial telemetry should not show drift");
+            // Initial baseline drift
+            assert!(
+                !telemetry.drift_detected,
+                "Initial telemetry should not show drift"
+            );
+        });
     }
 
     #[test]
@@ -609,7 +830,8 @@ mod tests {
         assert!(res_mem.system_recovered);
 
         // Serialization round-trip
-        let serialized = serde_json::to_string(&res_mem).expect("Chaos experiment should serialize");
+        let serialized =
+            serde_json::to_string(&res_mem).expect("Chaos experiment should serialize");
         let deserialized: ChaosExperimentResult =
             serde_json::from_str(&serialized).expect("Chaos experiment should deserialize");
         assert_eq!(deserialized.recovery_time_ms, res_mem.recovery_time_ms);
@@ -618,48 +840,240 @@ mod tests {
 
     #[test]
     fn test_self_healing_replan_flow() {
-        let mut telemetry = EmpiricalObserver::probe_system("http://127.0.0.1:4566/health");
+        with_mock_endpoint(|| {
+            let mut telemetry = EmpiricalObserver::probe_system("http://127.0.0.1:4566/health");
 
-        // Without drift, replanner should return None
-        let no_action = ReplanEngine::evaluate_and_heal(&telemetry);
-        assert!(no_action.is_none(), "Normal telemetry should not trigger self-healing");
+            // Without drift, replanner should return None
+            let no_action = ReplanEngine::evaluate_and_heal(&telemetry);
+            assert!(
+                no_action.is_none(),
+                "Normal telemetry should not trigger self-healing"
+            );
 
-        // Inject drift into telemetry
-        telemetry.drift_detected = true;
-        let action = ReplanEngine::evaluate_and_heal(&telemetry)
-            .expect("Drifted telemetry must trigger self-healing action");
+            // Inject drift into telemetry
+            telemetry.drift_detected = true;
+            let action = ReplanEngine::evaluate_and_heal(&telemetry)
+                .expect("Drifted telemetry must trigger self-healing action");
 
-        assert!(action.success);
-        assert_eq!(action.drift_cause, "Container failed health check");
-        assert_eq!(action.corrective_action, "Restarting container via ltn-replan");
+            // Verify real healing action exit code and cause
+            assert!(action.exit_code.is_some());
+            assert!(action.drift_cause.contains("failed health check"));
+            assert!(action.corrective_action.contains("docker restart") || action.corrective_action.contains("container"));
 
-        // Action serialization round-trip
-        let serialized_action = serde_json::to_string(&action).unwrap();
-        let deserialized_action: SelfHealingAction = serde_json::from_str(&serialized_action).unwrap();
-        assert!(deserialized_action.success);
+            // Action serialization round-trip
+            let serialized_action = serde_json::to_string(&action).unwrap();
+            let deserialized_action: SelfHealingAction =
+                serde_json::from_str(&serialized_action).unwrap();
+            assert_eq!(deserialized_action.success, action.success);
+            assert_eq!(deserialized_action.exit_code, action.exit_code);
+
+            // Verify process remediation with real exit code
+            #[cfg(windows)]
+            let (cmd, args) = ("cmd.exe", vec!["/c".to_string(), "exit 0".to_string()]);
+            #[cfg(not(windows))]
+            let (cmd, args) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
+
+            let proc_target = healing::RemediationTarget::process_with_respawn("proc-test", cmd, args);
+            let proc_action = ReplanEngine::evaluate_and_heal_target(&telemetry, Some(&proc_target))
+                .expect("Process target remediation must trigger");
+            assert!(proc_action.success);
+            assert_eq!(proc_action.exit_code, Some(0));
+            assert!(proc_action.corrective_action.contains("Respawned"));
+        });
     }
 
     #[test]
     fn test_closed_loop_observer_chaos_healing() {
-        // 1. Observe healthy system
-        let mut telemetry = EmpiricalObserver::probe_system("http://127.0.0.1:4566/health");
-        assert!(!telemetry.drift_detected);
+        with_mock_endpoint(|| {
+            // 1. Observe healthy system
+            let mut telemetry = EmpiricalObserver::probe_system("http://127.0.0.1:4566/health");
+            assert!(!telemetry.drift_detected);
 
-        // 2. Chronos injects network packet loss
-        let fault = ChaosFault::NetworkPacketLoss { percentage: 50 };
-        let experiment = ChronosChaosEngine::inject_fault(fault);
-        assert!(experiment.system_recovered);
+            // 2. Chronos injects network packet loss
+            let fault = ChaosFault::NetworkPacketLoss { percentage: 50 };
+            let experiment = ChronosChaosEngine::inject_fault(fault);
+            assert!(experiment.system_recovered);
 
-        // 3. Mark drift as observed post-fault
-        telemetry.drift_detected = true;
+            // 3. Mark drift as observed post-fault
+            telemetry.drift_detected = true;
 
-        // 4. Replan engine self-heals
-        let healing = ReplanEngine::evaluate_and_heal(&telemetry).expect("Self-healing must engage");
-        assert!(healing.success);
+            // 4. Replan engine self-heals
+            let healing =
+                ReplanEngine::evaluate_and_heal(&telemetry).expect("Self-healing must engage");
+            assert!(healing.exit_code.is_some());
+            assert!(!healing.corrective_action.is_empty());
 
-        // 5. Verify system restored to healthy state
-        telemetry.drift_detected = false;
-        assert!(ReplanEngine::evaluate_and_heal(&telemetry).is_none());
+            // 5. Verify system restored to healthy state
+            telemetry.drift_detected = false;
+            assert!(ReplanEngine::evaluate_and_heal(&telemetry).is_none());
+        });
+    }
+
+    // =========================================================================
+    // 4. tools/call Tests for the 7 New Control Loop Tools
+    // =========================================================================
+
+    #[test]
+    fn test_tool_call_ltn_observe() {
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("obs-1")),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "ltn_observe",
+                "arguments": {
+                    "workload_id": "test-workload",
+                    "endpoint": "http://localhost:8080"
+                }
+            })),
+        };
+        let resp = McpServer::handle_request(&req);
+        assert_eq!(resp.id, serde_json::json!("obs-1"));
+        assert!(resp.error.is_none());
+        let res_val = resp.result.unwrap();
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_tool_call_ltn_validate() {
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("val-1")),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "ltn_validate",
+                "arguments": {
+                    "path": ".",
+                    "provider": "AWS"
+                }
+            })),
+        };
+        let resp = McpServer::handle_request(&req);
+        assert_eq!(resp.id, serde_json::json!("val-1"));
+        assert!(resp.error.is_none());
+        let res_val = resp.result.unwrap();
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_tool_call_ltn_plan() {
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("plan-1")),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "ltn_plan",
+                "arguments": {
+                    "path": "."
+                }
+            })),
+        };
+        let resp = McpServer::handle_request(&req);
+        assert_eq!(resp.id, serde_json::json!("plan-1"));
+        assert!(resp.error.is_none());
+        let res_val = resp.result.unwrap();
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_tool_call_ltn_canary() {
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("canary-1")),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "ltn_canary",
+                "arguments": {
+                    "error_rate": 0.0001,
+                    "p99_latency_ms": 35.0
+                }
+            })),
+        };
+        let resp = McpServer::handle_request(&req);
+        assert_eq!(resp.id, serde_json::json!("canary-1"));
+        assert!(resp.error.is_none());
+        let res_val = resp.result.unwrap();
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_tool_call_ltn_diagnose() {
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("diag-1")),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "ltn_diagnose",
+                "arguments": {
+                    "workload_id": "test-workload"
+                }
+            })),
+        };
+        let resp = McpServer::handle_request(&req);
+        assert_eq!(resp.id, serde_json::json!("diag-1"));
+        assert!(resp.error.is_none());
+        let res_val = resp.result.unwrap();
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_tool_call_ltn_replan() {
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("replan-1")),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "ltn_replan",
+                "arguments": {
+                    "path": "."
+                }
+            })),
+        };
+        let resp = McpServer::handle_request(&req);
+        assert_eq!(resp.id, serde_json::json!("replan-1"));
+        assert!(resp.error.is_none());
+        let res_val = resp.result.unwrap();
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_tool_call_ltn_reconcile() {
+        let req = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!("rec-1")),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({
+                "name": "ltn_reconcile",
+                "arguments": {
+                    "auto_converge": false
+                }
+            })),
+        };
+        let resp = McpServer::handle_request(&req);
+        assert_eq!(resp.id, serde_json::json!("rec-1"));
+        assert!(resp.error.is_none());
+        let res_val = resp.result.unwrap();
+        assert_eq!(
+            res_val.get("isError").and_then(|b| b.as_bool()),
+            Some(false)
+        );
     }
 }
-

@@ -18,6 +18,31 @@ pub struct PlanNode {
     pub environment: std::collections::HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PricingSource {
+    ExactProviderPrice,
+    EstimatedHeuristic,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ResourceCostItem {
+    pub resource_name: String,
+    pub quantity: f64,
+    pub unit: String,
+    pub unit_price_usd: f64,
+    pub total_monthly_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CostEstimate {
+    pub estimated_hourly_usd: f64,
+    pub estimated_monthly_usd: f64,
+    pub resource_breakdown: Vec<ResourceCostItem>,
+    pub pricing_source: PricingSource,
+    pub confidence: f32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArchitecturePlan {
     pub tier: PlanTier,
@@ -25,6 +50,36 @@ pub struct ArchitecturePlan {
     pub nodes: Vec<PlanNode>,
     pub estimated_monthly_cost_usd: f64,
     pub description: String,
+}
+
+impl ArchitecturePlan {
+    pub fn cost_estimate(&self) -> CostEstimate {
+        let is_exact =
+            self.provider.starts_with("LOCAL") || self.provider.starts_with("BARE_METAL");
+        let source = if is_exact {
+            PricingSource::ExactProviderPrice
+        } else {
+            PricingSource::EstimatedHeuristic
+        };
+
+        CostEstimate {
+            estimated_hourly_usd: (self.estimated_monthly_cost_usd / 730.0 * 100.0).round() / 100.0,
+            estimated_monthly_usd: self.estimated_monthly_cost_usd,
+            resource_breakdown: vec![ResourceCostItem {
+                resource_name: "Combined Cluster Compute & Networking".to_string(),
+                quantity: self.nodes.len() as f64,
+                unit: "nodes".to_string(),
+                unit_price_usd: if !self.nodes.is_empty() {
+                    self.estimated_monthly_cost_usd / self.nodes.len() as f64
+                } else {
+                    0.0
+                },
+                total_monthly_usd: self.estimated_monthly_cost_usd,
+            }],
+            pricing_source: source,
+            confidence: 0.90,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -51,11 +106,12 @@ impl ArchitecturePlanner {
             }
         } else if p.starts_with("BARE_METAL") {
             // Bare-Metal Datacenter Infrastructure: amortized hardware, rack co-lo, power, cooling, network fabric
-            let (fixed, fabric_overhead) = if p.contains("SLURM") || p.contains("NVME") || p.contains("NUMA") {
-                (120.0, 120.0)
-            } else {
-                (45.0, 45.0)
-            };
+            let (fixed, fabric_overhead) =
+                if p.contains("SLURM") || p.contains("NVME") || p.contains("NUMA") {
+                    (120.0, 120.0)
+                } else {
+                    (45.0, 45.0)
+                };
             ProviderRateInfo {
                 cpu_rate_per_core: 5.00,
                 ram_rate_per_gb: 0.75,
@@ -126,7 +182,10 @@ impl ArchitecturePlanner {
         provider: &str,
     ) -> f64 {
         let rate = Self::get_provider_rate(provider);
-        if rate.cpu_rate_per_core == 0.0 && rate.ram_rate_per_gb == 0.0 && rate.gpu_rate_per_unit == 0.0 {
+        if rate.cpu_rate_per_core == 0.0
+            && rate.ram_rate_per_gb == 0.0
+            && rate.gpu_rate_per_unit == 0.0
+        {
             return 0.0;
         }
 
@@ -139,12 +198,8 @@ impl ArchitecturePlanner {
         let total_base = compute_base + gpu_base + rate.base_fixed_cost;
 
         match tier {
-            PlanTier::Cheapest => {
-                (total_base * 0.35).max(rate.min_tier_floor).round()
-            }
-            PlanTier::Balanced => {
-                total_base.max(rate.min_tier_floor).round()
-            }
+            PlanTier::Cheapest => (total_base * 0.35).max(rate.min_tier_floor).round(),
+            PlanTier::Balanced => total_base.max(rate.min_tier_floor).round(),
             PlanTier::HighPerformance => {
                 let multiplier = if provider.to_uppercase().contains("GCP") {
                     1.75
@@ -154,8 +209,88 @@ impl ArchitecturePlanner {
                     1.85
                 };
                 let overhead = if gpus > 0.0 { 100.0 } else { 35.0 };
-                ((total_base * multiplier) + overhead).max(rate.min_tier_floor * 2.0).round()
+                ((total_base * multiplier) + overhead)
+                    .max(rate.min_tier_floor * 2.0)
+                    .round()
             }
+        }
+    }
+
+    /// Normalized cost estimation for Architecture IR with resource breakdown and confidence
+    pub fn evaluate_architecture_cost(arch: &ltn_core::ir::Architecture) -> CostEstimate {
+        let prov_str = match arch.provider_target {
+            ltn_core::ir::ProviderTarget::LocalDocker
+            | ltn_core::ir::ProviderTarget::DockerCompose
+            | ltn_core::ir::ProviderTarget::DeterministicContainer => "LOCAL_DOCKER",
+            ltn_core::ir::ProviderTarget::Kubernetes => "KUBERNETES",
+            ltn_core::ir::ProviderTarget::AWS => "AWS",
+            ltn_core::ir::ProviderTarget::GCP => "GCP",
+            ltn_core::ir::ProviderTarget::Azure => "AZURE",
+            ltn_core::ir::ProviderTarget::BareMetal => "BARE_METAL",
+        };
+
+        let rates = Self::get_provider_rate(prov_str);
+        let mut total_monthly = rates.base_fixed_cost;
+        let mut breakdown = Vec::new();
+
+        let mut total_cores = 0.0;
+        let mut total_ram_gb = 0.0;
+        let mut total_gpus = 0.0;
+
+        for w in &arch.workloads {
+            let replicas = w.replicas.desired_replicas as f64;
+            total_cores += (w.compute.cpu_cores as f64) * replicas;
+            total_ram_gb += ((w.compute.ram_mb as f64) / 1024.0) * replicas;
+            total_gpus += (w.compute.gpu_count as f64) * replicas;
+        }
+
+        let cpu_monthly = total_cores * rates.cpu_rate_per_core;
+        let ram_monthly = total_ram_gb * rates.ram_rate_per_gb;
+        let gpu_monthly = total_gpus * rates.gpu_rate_per_unit;
+
+        if total_cores > 0.0 {
+            breakdown.push(ResourceCostItem {
+                resource_name: "vCPU Compute".to_string(),
+                quantity: total_cores,
+                unit: "cores".to_string(),
+                unit_price_usd: rates.cpu_rate_per_core,
+                total_monthly_usd: cpu_monthly,
+            });
+        }
+        if total_ram_gb > 0.0 {
+            breakdown.push(ResourceCostItem {
+                resource_name: "RAM Memory".to_string(),
+                quantity: total_ram_gb,
+                unit: "GB".to_string(),
+                unit_price_usd: rates.ram_rate_per_gb,
+                total_monthly_usd: ram_monthly,
+            });
+        }
+        if total_gpus > 0.0 {
+            breakdown.push(ResourceCostItem {
+                resource_name: "GPU Accelerator".to_string(),
+                quantity: total_gpus,
+                unit: "units".to_string(),
+                unit_price_usd: rates.gpu_rate_per_unit,
+                total_monthly_usd: gpu_monthly,
+            });
+        }
+
+        total_monthly += cpu_monthly + ram_monthly + gpu_monthly;
+        total_monthly = total_monthly.max(rates.min_tier_floor);
+
+        let pricing_source = if prov_str == "LOCAL_DOCKER" || prov_str == "BARE_METAL" {
+            PricingSource::ExactProviderPrice
+        } else {
+            PricingSource::EstimatedHeuristic
+        };
+
+        CostEstimate {
+            estimated_hourly_usd: (total_monthly / 730.0 * 100.0).round() / 100.0,
+            estimated_monthly_usd: (total_monthly * 100.0).round() / 100.0,
+            resource_breakdown: breakdown,
+            pricing_source,
+            confidence: 0.90,
         }
     }
 
@@ -573,13 +708,16 @@ impl ArchitecturePlanner {
         };
 
         for plan in &mut plans {
-            plan.estimated_monthly_cost_usd = Self::compute_tier_cost(classification, &plan.tier, &plan.provider);
+            plan.estimated_monthly_cost_usd =
+                Self::compute_tier_cost(classification, &plan.tier, &plan.provider);
         }
 
         plans
     }
 
-    pub fn generate_bare_metal_plans(classification: &ProjectClassification) -> Vec<ArchitecturePlan> {
+    pub fn generate_bare_metal_plans(
+        classification: &ProjectClassification,
+    ) -> Vec<ArchitecturePlan> {
         match classification.workload_kind {
             WorkloadKind::PythonVllmGpu => vec![
                 ArchitecturePlan {
@@ -781,6 +919,7 @@ mod tests {
             recommended_cpu_cores: 2048,
             recommended_vram_mb: 40_960_000,
             recommended_gpu_count: 512,
+            provenance: None,
         };
 
         // SM-079 classification: 1 node, 0 GPUs, 2 cores, 2GB RAM
@@ -791,14 +930,21 @@ mod tests {
             recommended_cpu_cores: 2,
             recommended_vram_mb: 0,
             recommended_gpu_count: 0,
+            provenance: None,
         };
 
         let dc114_plans = ArchitecturePlanner::generate_plans(&dc114_class);
         let sm079_plans = ArchitecturePlanner::generate_plans(&sm079_class);
 
         // Balanced tier cost comparisons
-        let dc114_balanced = dc114_plans.iter().find(|p| p.tier == PlanTier::Balanced).unwrap();
-        let sm079_balanced = sm079_plans.iter().find(|p| p.tier == PlanTier::Balanced).unwrap();
+        let dc114_balanced = dc114_plans
+            .iter()
+            .find(|p| p.tier == PlanTier::Balanced)
+            .unwrap();
+        let sm079_balanced = sm079_plans
+            .iter()
+            .find(|p| p.tier == PlanTier::Balanced)
+            .unwrap();
 
         // DC-114 has 512 GPUs and 2048 cores: cost must exceed $500,000/mo
         assert!(
@@ -815,13 +961,15 @@ mod tests {
         );
 
         // HighPerformance tier must be scaled higher than Balanced
-        let dc114_hp = dc114_plans.iter().find(|p| p.tier == PlanTier::HighPerformance).unwrap();
+        let dc114_hp = dc114_plans
+            .iter()
+            .find(|p| p.tier == PlanTier::HighPerformance)
+            .unwrap();
         assert!(dc114_hp.estimated_monthly_cost_usd > dc114_balanced.estimated_monthly_cost_usd);
 
         // Crucial invariant: two problems in the same workload kind must produce different costs
         assert_ne!(
-            dc114_balanced.estimated_monthly_cost_usd,
-            sm079_balanced.estimated_monthly_cost_usd,
+            dc114_balanced.estimated_monthly_cost_usd, sm079_balanced.estimated_monthly_cost_usd,
             "Costs must vary with scale"
         );
     }
@@ -835,15 +983,24 @@ mod tests {
             recommended_cpu_cores: 8,
             recommended_vram_mb: 0,
             recommended_gpu_count: 0,
+            provenance: None,
         };
 
         let aws_cost = ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "AWS");
         let gcp_cost = ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "GCP");
-        let azure_cost = ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "AZURE");
-        let do_cost = ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "DIGITAL_OCEAN");
-        let fastly_cost = ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "FASTLY_COMPUTE");
-        let cf_cost = ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "CLOUDFLARE_WORKERS");
-        let local_cost = ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "LOCAL_DOCKER");
+        let azure_cost =
+            ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "AZURE");
+        let do_cost =
+            ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "DIGITAL_OCEAN");
+        let fastly_cost =
+            ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "FASTLY_COMPUTE");
+        let cf_cost = ArchitecturePlanner::compute_tier_cost(
+            &class,
+            &PlanTier::Balanced,
+            "CLOUDFLARE_WORKERS",
+        );
+        let local_cost =
+            ArchitecturePlanner::compute_tier_cost(&class, &PlanTier::Balanced, "LOCAL_DOCKER");
 
         // Verified expected figures:
         // AWS: (8*24) + (16*3.50) = 192 + 56 = $248
@@ -863,10 +1020,22 @@ mod tests {
 
         // Assert all provider prices are distinct from each other:
         assert_ne!(aws_cost, gcp_cost, "AWS and GCP must have distinct pricing");
-        assert_ne!(gcp_cost, azure_cost, "GCP and Azure must have distinct pricing");
-        assert_ne!(azure_cost, do_cost, "Azure and DigitalOcean must have distinct pricing");
-        assert_ne!(do_cost, fastly_cost, "DigitalOcean and Fastly must have distinct pricing");
-        assert_ne!(fastly_cost, cf_cost, "Fastly and Cloudflare must have distinct pricing");
+        assert_ne!(
+            gcp_cost, azure_cost,
+            "GCP and Azure must have distinct pricing"
+        );
+        assert_ne!(
+            azure_cost, do_cost,
+            "Azure and DigitalOcean must have distinct pricing"
+        );
+        assert_ne!(
+            do_cost, fastly_cost,
+            "DigitalOcean and Fastly must have distinct pricing"
+        );
+        assert_ne!(
+            fastly_cost, cf_cost,
+            "Fastly and Cloudflare must have distinct pricing"
+        );
     }
 
     #[test]
@@ -881,21 +1050,42 @@ mod tests {
             recommended_cpu_cores: 2048,
             recommended_vram_mb: 40_960_000,
             recommended_gpu_count: 512,
+            provenance: None,
         };
 
         let bm_gpu_plans = ArchitecturePlanner::generate_bare_metal_plans(&dc114_gpu_class);
         assert_eq!(bm_gpu_plans.len(), 3);
         println!("[+] DC-114 GPU Plans Generated (3 tiers):");
         for p in &bm_gpu_plans {
-            println!("    - Tier: {:<16} | Provider: {:<28} | Cost: ${:.2}/mo | Nodes: {}", format!("{:?}", p.tier), p.provider, p.estimated_monthly_cost_usd, p.nodes.len());
+            println!(
+                "    - Tier: {:<16} | Provider: {:<28} | Cost: ${:.2}/mo | Nodes: {}",
+                format!("{:?}", p.tier),
+                p.provider,
+                p.estimated_monthly_cost_usd,
+                p.nodes.len()
+            );
         }
 
-        let slurm_hp = bm_gpu_plans.iter().find(|p| p.tier == PlanTier::HighPerformance).unwrap();
+        let slurm_hp = bm_gpu_plans
+            .iter()
+            .find(|p| p.tier == PlanTier::HighPerformance)
+            .unwrap();
         assert_eq!(slurm_hp.provider, "BARE_METAL_SLURM_INFINIBAND");
-        assert!(slurm_hp.description.contains("Slurm HPC cluster with GPUDirect RDMA"));
-        assert!(slurm_hp.nodes.iter().any(|n| n.role == "gpudirect-rdma-cluster"));
-        assert_eq!(slurm_hp.estimated_monthly_cost_usd, 451_189.0, "DC-114 HP cost must be $451,189");
-        println!("    [✓] HighPerformance verified: BARE_METAL_SLURM_INFINIBAND (${:.2}/mo)", slurm_hp.estimated_monthly_cost_usd);
+        assert!(slurm_hp
+            .description
+            .contains("Slurm HPC cluster with GPUDirect RDMA"));
+        assert!(slurm_hp
+            .nodes
+            .iter()
+            .any(|n| n.role == "gpudirect-rdma-cluster"));
+        assert_eq!(
+            slurm_hp.estimated_monthly_cost_usd, 451_189.0,
+            "DC-114 HP cost must be $451,189"
+        );
+        println!(
+            "    [✓] HighPerformance verified: BARE_METAL_SLURM_INFINIBAND (${:.2}/mo)",
+            slurm_hp.estimated_monthly_cost_usd
+        );
 
         // 2. DC-116 Stateful Storage -> BARE_METAL_CEPH & BARE_METAL_NVME_OF
         let dc116_storage_class = ProjectClassification {
@@ -905,28 +1095,58 @@ mod tests {
             recommended_cpu_cores: 32,
             recommended_vram_mb: 0,
             recommended_gpu_count: 0,
+            provenance: None,
         };
 
         let bm_storage_plans = ArchitecturePlanner::generate_bare_metal_plans(&dc116_storage_class);
         assert_eq!(bm_storage_plans.len(), 3);
         println!("[+] DC-116 Storage Plans Generated (3 tiers):");
         for p in &bm_storage_plans {
-            println!("    - Tier: {:<16} | Provider: {:<28} | Cost: ${:.2}/mo | Nodes: {}", format!("{:?}", p.tier), p.provider, p.estimated_monthly_cost_usd, p.nodes.len());
+            println!(
+                "    - Tier: {:<16} | Provider: {:<28} | Cost: ${:.2}/mo | Nodes: {}",
+                format!("{:?}", p.tier),
+                p.provider,
+                p.estimated_monthly_cost_usd,
+                p.nodes.len()
+            );
         }
 
-        let ceph_balanced = bm_storage_plans.iter().find(|p| p.tier == PlanTier::Balanced).unwrap();
+        let ceph_balanced = bm_storage_plans
+            .iter()
+            .find(|p| p.tier == PlanTier::Balanced)
+            .unwrap();
         assert_eq!(ceph_balanced.provider, "BARE_METAL_CEPH");
-        assert!(ceph_balanced.description.contains("Distributed Bare-Metal Ceph cluster"));
-        assert!(ceph_balanced.nodes.iter().any(|n| n.role == "distributed-osd-mesh"));
-        assert_eq!(ceph_balanced.estimated_monthly_cost_usd, 253.0, "DC-116 Balanced cost must be $253");
-        println!("    [✓] Balanced verified: BARE_METAL_CEPH (${:.2}/mo)", ceph_balanced.estimated_monthly_cost_usd);
+        assert!(ceph_balanced
+            .description
+            .contains("Distributed Bare-Metal Ceph cluster"));
+        assert!(ceph_balanced
+            .nodes
+            .iter()
+            .any(|n| n.role == "distributed-osd-mesh"));
+        assert_eq!(
+            ceph_balanced.estimated_monthly_cost_usd, 253.0,
+            "DC-116 Balanced cost must be $253"
+        );
+        println!(
+            "    [✓] Balanced verified: BARE_METAL_CEPH (${:.2}/mo)",
+            ceph_balanced.estimated_monthly_cost_usd
+        );
 
-        let nvme_hp = bm_storage_plans.iter().find(|p| p.tier == PlanTier::HighPerformance).unwrap();
+        let nvme_hp = bm_storage_plans
+            .iter()
+            .find(|p| p.tier == PlanTier::HighPerformance)
+            .unwrap();
         assert_eq!(nvme_hp.provider, "BARE_METAL_NVME_OF");
         assert!(nvme_hp.description.contains("SPDK NVMe-oF"));
         assert!(nvme_hp.nodes.iter().any(|n| n.role == "nvme-of-controller"));
-        assert_eq!(nvme_hp.estimated_monthly_cost_usd, 642.0, "DC-116 HP cost must be $642");
-        println!("    [✓] HighPerformance verified: BARE_METAL_NVME_OF (${:.2}/mo)", nvme_hp.estimated_monthly_cost_usd);
+        assert_eq!(
+            nvme_hp.estimated_monthly_cost_usd, 642.0,
+            "DC-116 HP cost must be $642"
+        );
+        println!(
+            "    [✓] HighPerformance verified: BARE_METAL_NVME_OF (${:.2}/mo)",
+            nvme_hp.estimated_monthly_cost_usd
+        );
 
         // 3. SC-039 Low-Latency Engine -> BARE_METAL_NUMA_CORE_PINNING
         let sc039_latency_class = ProjectClassification {
@@ -936,27 +1156,114 @@ mod tests {
             recommended_cpu_cores: 16,
             recommended_vram_mb: 0,
             recommended_gpu_count: 0,
+            provenance: None,
         };
 
         let bm_latency_plans = ArchitecturePlanner::generate_bare_metal_plans(&sc039_latency_class);
         assert_eq!(bm_latency_plans.len(), 3);
         println!("[+] SC-039 Low-Latency Plans Generated (3 tiers):");
         for p in &bm_latency_plans {
-            println!("    - Tier: {:<16} | Provider: {:<28} | Cost: ${:.2}/mo | Nodes: {}", format!("{:?}", p.tier), p.provider, p.estimated_monthly_cost_usd, p.nodes.len());
+            println!(
+                "    - Tier: {:<16} | Provider: {:<28} | Cost: ${:.2}/mo | Nodes: {}",
+                format!("{:?}", p.tier),
+                p.provider,
+                p.estimated_monthly_cost_usd,
+                p.nodes.len()
+            );
         }
 
-        let numa_hp = bm_latency_plans.iter().find(|p| p.tier == PlanTier::HighPerformance).unwrap();
+        let numa_hp = bm_latency_plans
+            .iter()
+            .find(|p| p.tier == PlanTier::HighPerformance)
+            .unwrap();
         assert_eq!(numa_hp.provider, "BARE_METAL_NUMA_CORE_PINNING");
-        assert!(numa_hp.description.contains("NUMA-aware bare-metal core pinning"));
-        assert!(numa_hp.nodes.iter().any(|n| n.role == "zero-latency-engine"));
-        assert_eq!(numa_hp.estimated_monthly_cost_usd, 449.0, "SC-039 HP cost must be $449");
-        println!("    [✓] HighPerformance verified: BARE_METAL_NUMA_CORE_PINNING (${:.2}/mo)", numa_hp.estimated_monthly_cost_usd);
+        assert!(numa_hp
+            .description
+            .contains("NUMA-aware bare-metal core pinning"));
+        assert!(numa_hp
+            .nodes
+            .iter()
+            .any(|n| n.role == "zero-latency-engine"));
+        assert_eq!(
+            numa_hp.estimated_monthly_cost_usd, 449.0,
+            "SC-039 HP cost must be $449"
+        );
+        println!(
+            "    [✓] HighPerformance verified: BARE_METAL_NUMA_CORE_PINNING (${:.2}/mo)",
+            numa_hp.estimated_monthly_cost_usd
+        );
 
         // Scale-tracking invariants across bare-metal workloads:
-        assert!(slurm_hp.estimated_monthly_cost_usd > nvme_hp.estimated_monthly_cost_usd * 100.0, "DC-114 GPU cluster must vastly exceed storage cluster");
-        assert!(nvme_hp.estimated_monthly_cost_usd > numa_hp.estimated_monthly_cost_usd, "DC-116 32-core storage must exceed SC-039 16-core engine");
-        assert_ne!(slurm_hp.estimated_monthly_cost_usd, nvme_hp.estimated_monthly_cost_usd);
-        assert_ne!(nvme_hp.estimated_monthly_cost_usd, numa_hp.estimated_monthly_cost_usd);
+        assert!(
+            slurm_hp.estimated_monthly_cost_usd > nvme_hp.estimated_monthly_cost_usd * 100.0,
+            "DC-114 GPU cluster must vastly exceed storage cluster"
+        );
+        assert!(
+            nvme_hp.estimated_monthly_cost_usd > numa_hp.estimated_monthly_cost_usd,
+            "DC-116 32-core storage must exceed SC-039 16-core engine"
+        );
+        assert_ne!(
+            slurm_hp.estimated_monthly_cost_usd,
+            nvme_hp.estimated_monthly_cost_usd
+        );
+        assert_ne!(
+            nvme_hp.estimated_monthly_cost_usd,
+            numa_hp.estimated_monthly_cost_usd
+        );
         println!("=== [END TEST] All 4 Bare-Metal Architectures Dynamically Verified ===\n");
+    }
+
+    #[test]
+    fn test_evaluate_architecture_cost_matrix() {
+        use ltn_core::ir::{
+            Architecture, ComputeRequirements, PlacementConstraints, ProviderTarget, ReplicaPolicy,
+            StorageRequirements, WorkloadDefinition, WorkloadKind,
+        };
+
+        let mut arch_aws = Architecture::new("aws-api", ProviderTarget::AWS);
+        arch_aws.workloads.push(WorkloadDefinition {
+            id: uuid::Uuid::new_v4(),
+            name: "api".to_string(),
+            kind: WorkloadKind::NodePostgresApi,
+            container_image: "node:18".to_string(),
+            entrypoint: None,
+            ports: vec![],
+            secrets: vec![],
+            compute: ComputeRequirements {
+                cpu_cores: 2,
+                ram_mb: 4096,
+                gpu_count: 0,
+                vram_mb: 0,
+                gpu_model_preference: None,
+            },
+            storage: StorageRequirements::default(),
+            network: Default::default(),
+            replicas: ReplicaPolicy {
+                min_replicas: 1,
+                max_replicas: 3,
+                desired_replicas: 2,
+            },
+            placement: PlacementConstraints::default(),
+        });
+
+        let estimate_aws = ArchitecturePlanner::evaluate_architecture_cost(&arch_aws);
+        assert!(estimate_aws.estimated_monthly_usd > 0.0);
+        assert_eq!(
+            estimate_aws.pricing_source,
+            PricingSource::EstimatedHeuristic
+        );
+        assert!(estimate_aws
+            .resource_breakdown
+            .iter()
+            .any(|r| r.resource_name == "vCPU Compute"));
+
+        let mut arch_local = arch_aws.clone();
+        arch_local.provider_target = ProviderTarget::LocalDocker;
+        let estimate_local = ArchitecturePlanner::evaluate_architecture_cost(&arch_local);
+        assert_eq!(estimate_local.estimated_monthly_usd, 0.0);
+        assert_eq!(
+            estimate_local.pricing_source,
+            PricingSource::ExactProviderPrice
+        );
     }
 }

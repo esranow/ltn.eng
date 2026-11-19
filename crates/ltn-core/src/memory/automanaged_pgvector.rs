@@ -87,13 +87,19 @@ impl AutoManagedPgVectorEngine {
     }
 
     /// Perform silent cosine similarity search over codebase contexts
-    pub fn query_similar_context(&self, query_vector: &[f32], limit: usize) -> Vec<VectorContextEntry> {
+    pub fn query_similar_context(
+        &self,
+        query_vector: &[f32],
+        limit: usize,
+    ) -> Vec<VectorContextEntry> {
         let mut entries: Vec<VectorContextEntry> = self.vector_index.values().cloned().collect();
 
         entries.sort_by(|a, b| {
             let sim_a = self.cosine_similarity(&a.embedding, query_vector);
             let sim_b = self.cosine_similarity(&b.embedding, query_vector);
-            sim_b.partial_cmp(&sim_a).unwrap_or(std::cmp::Ordering::Equal)
+            sim_b
+                .partial_cmp(&sim_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         entries.into_iter().take(limit).collect()

@@ -30,7 +30,10 @@ pub enum Constraint {
     GpuCount(u32),
     NetworkGbps(u32),
     WasiNetworkEdge(u16),
-    DataLocality { data_block_id: Uuid, max_latency_ms: u32 },
+    DataLocality {
+        data_block_id: Uuid,
+        max_latency_ms: u32,
+    },
     StrictIsolation(Uuid),
 }
 

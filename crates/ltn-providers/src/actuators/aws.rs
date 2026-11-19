@@ -15,8 +15,7 @@ pub struct AwsActuator;
 
 impl AwsActuator {
     pub fn get_endpoint() -> String {
-        std::env::var("AWS_ENDPOINT_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:4566".to_string())
+        std::env::var("AWS_ENDPOINT_URL").unwrap_or_else(|_| "http://127.0.0.1:4566".to_string())
     }
 
     pub fn deploy_ecs_task(task_name: &str) -> Result<AwsActuatorResult, String> {
@@ -28,7 +27,8 @@ impl AwsActuator {
                     "taskDefinition": task_name,
                     "count": 1,
                     "launchType": "FARGATE"
-                }).to_string();
+                })
+                .to_string();
 
                 let resp = MinimalHttpClient::request(
                     "POST",
@@ -41,8 +41,8 @@ impl AwsActuator {
                 )?;
 
                 if resp.status_code >= 200 && resp.status_code < 300 {
-                    let parsed: serde_json::Value = serde_json::from_str(&resp.body)
-                        .unwrap_or_else(|_| serde_json::json!({}));
+                    let parsed: serde_json::Value =
+                        serde_json::from_str(&resp.body).unwrap_or_else(|_| serde_json::json!({}));
                     let req_id = parsed
                         .pointer("/details/request_id")
                         .and_then(|v| v.as_str())
@@ -50,13 +50,20 @@ impl AwsActuator {
 
                     Ok(AwsActuatorResult {
                         instance_id: format!("i-{}", req_id.replace('-', "")),
-                        region: std::env::var("AWS_DEFAULT_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
-                        status: format!("HTTP {} OK: ECS Task '{}' deployed via {}", resp.status_code, task_name, endpoint),
+                        region: std::env::var("AWS_DEFAULT_REGION")
+                            .unwrap_or_else(|_| "us-east-1".to_string()),
+                        status: format!(
+                            "HTTP {} OK: ECS Task '{}' deployed via {}",
+                            resp.status_code, task_name, endpoint
+                        ),
                         endpoint,
                         raw_response_body: resp.body,
                     })
                 } else {
-                    Err(format!("AWS ECS task deployment rejected with HTTP {}: {}", resp.status_code, resp.body))
+                    Err(format!(
+                        "AWS ECS task deployment rejected with HTTP {}: {}",
+                        resp.status_code, resp.body
+                    ))
                 }
             }
             AuthStatus::BlockedUnauthenticated(reason) => Err(reason),
@@ -79,13 +86,20 @@ impl AwsActuator {
                 if resp.status_code >= 200 && resp.status_code < 300 {
                     Ok(AwsActuatorResult {
                         instance_id: format!("arn:aws:s3:::{}", bucket_name),
-                        region: std::env::var("AWS_DEFAULT_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
-                        status: format!("HTTP {} OK: S3 Bucket '{}' verified via {}", resp.status_code, bucket_name, endpoint),
+                        region: std::env::var("AWS_DEFAULT_REGION")
+                            .unwrap_or_else(|_| "us-east-1".to_string()),
+                        status: format!(
+                            "HTTP {} OK: S3 Bucket '{}' verified via {}",
+                            resp.status_code, bucket_name, endpoint
+                        ),
                         endpoint,
                         raw_response_body: resp.body,
                     })
                 } else {
-                    Err(format!("AWS S3 Bucket creation rejected with HTTP {}: {}", resp.status_code, resp.body))
+                    Err(format!(
+                        "AWS S3 Bucket creation rejected with HTTP {}: {}",
+                        resp.status_code, resp.body
+                    ))
                 }
             }
             AuthStatus::BlockedUnauthenticated(reason) => Err(reason),
@@ -101,7 +115,8 @@ impl AwsActuator {
                     "DBInstanceIdentifier": db_name,
                     "Engine": "postgres",
                     "DBInstanceClass": "db.t3.medium"
-                }).to_string();
+                })
+                .to_string();
 
                 let resp = MinimalHttpClient::request(
                     "POST",
@@ -116,13 +131,20 @@ impl AwsActuator {
                 if resp.status_code >= 200 && resp.status_code < 300 {
                     Ok(AwsActuatorResult {
                         instance_id: format!("rds-{}", db_name),
-                        region: std::env::var("AWS_DEFAULT_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
-                        status: format!("HTTP {} OK: RDS PostgreSQL instance '{}' provisioned via {}", resp.status_code, db_name, endpoint),
+                        region: std::env::var("AWS_DEFAULT_REGION")
+                            .unwrap_or_else(|_| "us-east-1".to_string()),
+                        status: format!(
+                            "HTTP {} OK: RDS PostgreSQL instance '{}' provisioned via {}",
+                            resp.status_code, db_name, endpoint
+                        ),
                         endpoint,
                         raw_response_body: resp.body,
                     })
                 } else {
-                    Err(format!("AWS RDS Instance creation rejected with HTTP {}: {}", resp.status_code, resp.body))
+                    Err(format!(
+                        "AWS RDS Instance creation rejected with HTTP {}: {}",
+                        resp.status_code, resp.body
+                    ))
                 }
             }
             AuthStatus::BlockedUnauthenticated(reason) => Err(reason),
@@ -139,33 +161,64 @@ mod tests {
 
     #[test]
     fn test_unreachable_endpoint_returns_error_never_synthetic_success() {
-        let _lock = TEST_ENV_LOCK.lock().unwrap();
+        let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AWS_ACCESS_KEY_ID", "mock_key");
+        std::env::set_var("AWS_SECRET_ACCESS_KEY", "mock_secret");
         std::env::set_var("AWS_ENDPOINT_URL", "http://127.0.0.1:49999");
         let result = AwsActuator::deploy_ecs_task("test-task");
-        assert!(result.is_err(), "Must return Err when endpoint is unreachable");
+        assert!(
+            result.is_err(),
+            "Must return Err when endpoint is unreachable"
+        );
         let err_msg = result.unwrap_err();
-        assert!(err_msg.contains("Failed to connect") || err_msg.contains("Connection") || err_msg.contains("refused"), "Error must describe network failure, got: {}", err_msg);
+        assert!(
+            err_msg.contains("Failed to connect")
+                || err_msg.contains("Connection")
+                || err_msg.contains("refused"),
+            "Error must describe network failure, got: {}",
+            err_msg
+        );
     }
 
     #[test]
     fn test_real_http_call_to_ministack() {
-        let _lock = TEST_ENV_LOCK.lock().unwrap();
+        let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AWS_ACCESS_KEY_ID", "mock_key");
+        std::env::set_var("AWS_SECRET_ACCESS_KEY", "mock_secret");
         std::env::set_var("AWS_ENDPOINT_URL", "http://127.0.0.1:4566");
         let ecs_res = AwsActuator::deploy_ecs_task("eval-task-001");
-        assert!(ecs_res.is_ok(), "MiniStack ECS deployment should succeed via real HTTP: {:?}", ecs_res);
+        assert!(
+            ecs_res.is_ok(),
+            "MiniStack ECS deployment should succeed via real HTTP: {:?}",
+            ecs_res
+        );
         let res = ecs_res.unwrap();
-        assert!(res.status.contains("HTTP 200 OK"), "Status must confirm real HTTP 200 OK, got: {}", res.status);
+        assert!(
+            res.status.contains("HTTP 200 OK"),
+            "Status must confirm real HTTP 200 OK, got: {}",
+            res.status
+        );
 
         let s3_res = AwsActuator::create_s3_bucket("test-bucket-eval");
-        assert!(s3_res.is_ok(), "MiniStack S3 bucket creation should succeed via real HTTP: {:?}", s3_res);
+        assert!(
+            s3_res.is_ok(),
+            "MiniStack S3 bucket creation should succeed via real HTTP: {:?}",
+            s3_res
+        );
 
         let rds_res = AwsActuator::deploy_rds_instance("eval-db-01");
-        assert!(rds_res.is_ok(), "MiniStack RDS deployment should succeed via real HTTP: {:?}", rds_res);
+        assert!(
+            rds_res.is_ok(),
+            "MiniStack RDS deployment should succeed via real HTTP: {:?}",
+            rds_res
+        );
     }
 
     #[test]
     fn test_ministack_request_id_changes_across_seconds() {
-        let _lock = TEST_ENV_LOCK.lock().unwrap();
+        let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AWS_ACCESS_KEY_ID", "mock_key");
+        std::env::set_var("AWS_SECRET_ACCESS_KEY", "mock_secret");
         std::env::set_var("AWS_ENDPOINT_URL", "http://127.0.0.1:4566");
 
         // Call 1
@@ -197,7 +250,13 @@ mod tests {
         eprintln!("CALL 2 instance_id: {}", res2.instance_id);
         eprintln!("CALL 3 instance_id: {}", res3.instance_id);
 
-        assert_ne!(res1.instance_id, res2.instance_id, "Instance IDs must differ after 1s gap");
-        assert_ne!(res2.instance_id, res3.instance_id, "Instance IDs must differ after 1s gap");
+        assert_ne!(
+            res1.instance_id, res2.instance_id,
+            "Instance IDs must differ after 1s gap"
+        );
+        assert_ne!(
+            res2.instance_id, res3.instance_id,
+            "Instance IDs must differ after 1s gap"
+        );
     }
 }

@@ -18,6 +18,10 @@ impl MinimalHttpClient {
         headers: &[(&str, &str)],
         body: Option<&str>,
     ) -> Result<HttpResponse, String> {
+        if url_str.starts_with("https://") {
+            return Self::request_https(method, url_str, headers, body);
+        }
+
         let (host, port, path) = Self::parse_url(url_str)?;
         let addr = format!("{}:{}", host, port);
 
@@ -62,7 +66,10 @@ impl MinimalHttpClient {
         let body_bytes = body.unwrap_or("").as_bytes();
         let content_length = body_bytes.len();
 
-        let mut req_str = format!("{} {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n", method, path, host);
+        let mut req_str = format!(
+            "{} {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n",
+            method, path, host
+        );
         let mut has_content_type = false;
         let mut has_content_length = false;
 
@@ -94,7 +101,9 @@ impl MinimalHttpClient {
                 .map_err(|e| format!("Failed to write HTTP body to {}: {}", addr, e))?;
         }
 
-        stream.flush().map_err(|e| format!("Failed to flush stream: {}", e))?;
+        stream
+            .flush()
+            .map_err(|e| format!("Failed to flush stream: {}", e))?;
 
         let mut raw_response = Vec::new();
         stream
@@ -133,11 +142,73 @@ impl MinimalHttpClient {
         Ok((host, port, path.to_string()))
     }
 
+    fn request_https(
+        method: &str,
+        url_str: &str,
+        headers: &[(&str, &str)],
+        body: Option<&str>,
+    ) -> Result<HttpResponse, String> {
+        let mut cmd = std::process::Command::new("curl.exe");
+        cmd.arg("-s").arg("-i").arg("-X").arg(method);
+        for (k, v) in headers {
+            cmd.arg("-H").arg(format!("{}: {}", k, v));
+        }
+        if let Some(b) = body {
+            cmd.arg("-d").arg(b);
+        }
+        cmd.arg(url_str);
+
+        let output = cmd
+            .output()
+            .or_else(|_| {
+                let mut fallback = std::process::Command::new("curl");
+                fallback.arg("-s").arg("-i").arg("-X").arg(method);
+                for (k, v) in headers {
+                    fallback.arg("-H").arg(format!("{}: {}", k, v));
+                }
+                if let Some(b) = body {
+                    fallback.arg("-d").arg(b);
+                }
+                fallback.arg(url_str);
+                fallback.output()
+            })
+            .map_err(|e| {
+                format!(
+                    "Failed to execute curl for HTTPS request to {}: {}",
+                    url_str, e
+                )
+            })?;
+
+        let raw_str = String::from_utf8_lossy(&output.stdout).to_string();
+        if raw_str.is_empty() {
+            let err_str = String::from_utf8_lossy(&output.stderr).to_string();
+            return Err(format!(
+                "HTTPS request via curl returned empty response: {}",
+                err_str
+            ));
+        }
+
+        Self::parse_response(&raw_str)
+    }
+
     fn parse_response(response_str: &str) -> Result<HttpResponse, String> {
-        let mut lines = response_str.split("\r\n");
-        let status_line = lines
-            .next()
-            .ok_or_else(|| "Empty HTTP response received".to_string())?;
+        // If there are multiple HTTP response headers (e.g. 100 Continue, 301 Redirect), find the last status line
+        let norm = response_str.replace("\r\n", "\n");
+        let (header_chunk, body_chunk) = if let Some(idx) = norm.find("\n\n") {
+            (&norm[..idx], &norm[idx + 2..])
+        } else {
+            (norm.as_str(), "")
+        };
+
+        let mut status_line = "";
+        for line in header_chunk.lines() {
+            if line.starts_with("HTTP/") {
+                status_line = line;
+            }
+        }
+        if status_line.is_empty() {
+            status_line = header_chunk.lines().next().unwrap_or("");
+        }
 
         let mut status_parts = status_line.splitn(3, ' ');
         let _version = status_parts
@@ -148,20 +219,17 @@ impl MinimalHttpClient {
             .ok_or_else(|| format!("Missing status code in: {}", status_line))?;
         let status_text = status_parts.next().unwrap_or("").to_string();
 
-        let status_code: u16 = status_code_str
-            .parse()
-            .map_err(|_| format!("Invalid status code '{}' in: {}", status_code_str, status_line))?;
-
-        let body = if let Some(body_start) = response_str.find("\r\n\r\n") {
-            response_str[body_start + 4..].to_string()
-        } else {
-            String::new()
-        };
+        let status_code: u16 = status_code_str.parse().map_err(|_| {
+            format!(
+                "Invalid status code '{}' in: {}",
+                status_code_str, status_line
+            )
+        })?;
 
         Ok(HttpResponse {
             status_code,
             status_text,
-            body,
+            body: body_chunk.to_string(),
         })
     }
 }
