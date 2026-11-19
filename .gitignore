@@ -27,3 +27,6 @@ Thumbs.db
 
 # Built binaries
 bin/*.exe
+
+# Local tool downloads (OpenTofu etc.)
+.tools/

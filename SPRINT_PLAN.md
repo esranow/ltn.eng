@@ -54,6 +54,30 @@ Each crate exposes `pub fn tools() -> Vec<ToolDef>`; the skeleton `lib.rs` in ea
 - **Secrets.** No tool takes a secret as an argument. Cloud credentials come from the provider's standard credential chain in the server's environment; SSH uses the user's agent or key files.
 - **Extension data.** A crate that needs to persist its own records uses `State::ext["<crate>"]`.
 
+- **Restart policy.** App containers run with `--restart unless-stopped`, `--cpus` and `--memory` from the spec. A release is healthy only if the container is running, not restarting, has `RestartCount == 0` during the apply health gate, and (when the spec has a port) `GET http://<target.address>:<host_port><health_path>` returns 2xx or 3xx before `health_timeout_s`.
+- **Busy lock.** While the engine is applying or rolling back an app it sets `State.ext["locks"][<app>]` to an RFC 3339 expiry time (now + 10 minutes) and removes it when done. The watcher skips any app with an unexpired lock.
+- **Docker-dependent tests.** Mark them `#[ignore = "requires a running Docker daemon"]` and run them with `cargo test -p <crate> -- --ignored --test-threads=1`. Plain `cargo test` must pass with no Docker.
+
+## Tool arguments and key result fields
+
+All three sides (engine, observe, the MCP end-to-end script) rely on these names.
+
+| Tool | Arguments | Result must include |
+|---|---|---|
+| `ltn_analyze` | `path` | the `AppSpec` fields |
+| `ltn_plan` | `path`, `target?` (pin to one target id) | `plan_id`, `app`, `target_id`, `provision_offer`, `cost_cents_per_hour`, `capacity_considered`, `expires_at` |
+| `ltn_apply` | `plan_id` | `app`, `release`, `target_id`, `container`, `endpoint` (URL or null), `health` |
+| `ltn_rollback` | `app`, `to_release?` | `app`, `release` (now active), `from_release`, `health` |
+| `ltn_destroy` | `app`, `confirm` | `app`, `removed_containers` |
+| `ltn_targets` | none | `targets: [{id, provider, docker_host, reachable, capacity?, error?}]` |
+| `ltn_target_add` | `id`, `docker_host`, `address`, `cost_cents_per_hour?`, `gpu_count?`, `vram_mb?` | `id`, `reachable: true`, `capacity` |
+| `ltn_target_remove` | `id`, `confirm?` | `id`, `removed: true` |
+| `ltn_status` | `app?` | `apps: [{app, verdict, release, target_id, container: {...}, probe: {...}, stats: {...}}]`, verdict one of `healthy`, `degraded`, `down`, `missing` |
+| `ltn_logs` | `app`, `tail?` (default 100), `release?` | `app`, `release`, `container`, `logs` |
+| `ltn_diagnose` | `app` | `app`, `verdict`, `findings: [{severity, cause, evidence, suggested_action}]` |
+| `ltn_repair` | `app` | `app`, `action`, `before`, `after` |
+| `ltn_audit` | `app?`, `limit?` (default 50) | `entries` |
+
 ## Tool ownership
 
 | Crate | Tools |
