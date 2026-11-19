@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ltn": {
+      "command": "ltn",
+      "args": ["mcp"],
+      "env": {
+        "LTN_WATCH_INTERVAL_S": "15",
+        "LTN_MAX_HOURLY_CENTS": "50"
+      }
+    }
+  }
+}

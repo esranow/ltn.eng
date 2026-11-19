@@ -1,0 +1,6 @@
+# The e2e script copies this app and rewrites `name` with a unique suffix per run.
+name = "e2e-web"
+host_port = 18301
+cpu = 0.25
+ram_mb = 64
+health_timeout_s = 20

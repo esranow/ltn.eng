@@ -130,6 +130,10 @@ enum Commands {
     /// Run as a Model Context Protocol (MCP) Server over stdio
     Mcp,
 
+    /// The previous MCP server (demo tools), kept reachable for comparison
+    #[command(hide = true, name = "mcp-legacy")]
+    McpLegacy,
+
     /// Open interactive Terminal Menu
     Tui,
 
@@ -424,7 +428,8 @@ fn main() {
             &mut settings,
             &config_path,
         ),
-        Some(Commands::Mcp) => run_mcp_server(),
+        Some(Commands::Mcp) => run_ltn_mcp(),
+        Some(Commands::McpLegacy) => run_mcp_server(),
 
         Some(Commands::Canary {
             path,
@@ -469,6 +474,27 @@ fn main() {
 
         Some(Commands::Tui) | None => run_interactive_tui_app(&mut settings, &config_path),
     }
+}
+
+/// `ltn mcp`: the runtime MCP server, with the watcher unless `LTN_WATCH=0`.
+fn run_ltn_mcp() {
+    let ctx = ltn_mcp::context_from_env();
+    if std::env::var("LTN_WATCH").map_or(true, |v| v.trim() != "0") {
+        let secs = std::env::var("LTN_WATCH_INTERVAL_S")
+            .ok()
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .filter(|s| *s > 0)
+            .unwrap_or(15);
+        eprintln!("ltn mcp: watcher every {secs}s (set LTN_WATCH=0 to disable)");
+        let _watcher = ltn_observe::spawn_watcher(
+            ctx.clone(),
+            std::time::Duration::from_secs(secs),
+            ltn_engine::rollback,
+        );
+    } else {
+        eprintln!("ltn mcp: watcher disabled (LTN_WATCH=0)");
+    }
+    ltn_mcp::serve_stdio(ctx);
 }
 
 fn run_mcp_server() {
