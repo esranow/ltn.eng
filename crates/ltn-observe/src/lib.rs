@@ -181,6 +181,9 @@ fn repair_wait() -> Duration {
 }
 
 pub fn repair(ctx: &Ctx, app: &str) -> Result<Value> {
+    // Hold the app's lock so a concurrent apply/rollback cannot replace the
+    // container while we start or restart it.
+    let _lock = watch::AppLock::acquire(ctx, app, "ltn_repair")?;
     let (state, dep) = gather::load_deployment(ctx, app)?;
     let release = dep
         .current

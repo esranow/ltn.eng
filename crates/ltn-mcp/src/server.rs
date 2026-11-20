@@ -4,6 +4,8 @@ use ltn_state::{Ctx, ToolDef};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// Protocol versions this server speaks, oldest first.
 pub const PROTOCOL_VERSIONS: &[&str] = &["2024-11-05", "2025-03-26", "2025-06-18"];
@@ -12,6 +14,13 @@ const PARSE_ERROR: i64 = -32700;
 const INVALID_REQUEST: i64 = -32600;
 const METHOD_NOT_FOUND: i64 = -32601;
 const INVALID_PARAMS: i64 = -32602;
+
+/// Most `tools/call` requests running at once; further calls get a
+/// "server busy" error instead of queueing without bound.
+pub const MAX_IN_FLIGHT: usize = 8;
+
+/// JSON-RPC server error code used when every worker slot is taken.
+const SERVER_BUSY: i64 = -32000;
 
 /// Read JSON-RPC messages from stdin, one per line, and answer on stdout
 /// until stdin closes.
@@ -23,8 +32,44 @@ pub fn serve_stdio(ctx: Ctx) {
         ctx.home.display()
     );
     let stdin = std::io::stdin();
-    let stdout = std::io::stdout();
-    for line in stdin.lock().lines() {
+    let out: SharedWriter = Arc::new(Mutex::new(Box::new(std::io::stdout())));
+    serve(ctx, tools, stdin.lock(), out, MAX_IN_FLIGHT);
+}
+
+/// Where replies go. One mutex for the whole stream, so concurrent replies
+/// never interleave within a line.
+pub type SharedWriter = Arc<Mutex<Box<dyn Write + Send>>>;
+
+/// Write one reply line. Returns false once the stream is closed.
+fn write_line(out: &SharedWriter, line: &str) -> bool {
+    let mut w = match out.lock() {
+        Ok(w) => w,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    writeln!(w, "{line}").and_then(|_| w.flush()).is_ok()
+}
+
+/// True for a request that runs a tool (and so may be slow). Everything else
+/// (initialize, tools/list, ping, notifications, malformed input) is answered
+/// inline, in order.
+fn is_tool_call(raw: &str) -> bool {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(v) => v.get("id").is_some() && v.get("method").and_then(Value::as_str) == Some("tools/call"),
+        Err(_) => false,
+    }
+}
+
+/// The server loop over any line reader. Each `tools/call` runs on its own
+/// thread (at most `max_in_flight` at once) so a slow tool such as an image
+/// build does not block `ltn_status` or `ltn_logs`. Per-app mutations are
+/// serialised by the engine's busy lock, not here. Returns after the reader
+/// ends and every running call has written its reply.
+pub fn serve<R: BufRead>(ctx: Ctx, tools: Vec<ToolDef>, reader: R, out: SharedWriter, max_in_flight: usize) {
+    let ctx = Arc::new(ctx);
+    let tools = Arc::new(tools);
+    let in_flight = Arc::new(AtomicUsize::new(0));
+    let mut workers: Vec<std::thread::JoinHandle<()>> = Vec::new();
+    for line in reader.lines() {
         let line = match line {
             Ok(l) => l,
             Err(e) => {
@@ -35,13 +80,54 @@ pub fn serve_stdio(ctx: Ctx) {
         if line.trim().is_empty() {
             continue;
         }
-        if let Some(reply) = handle_message(&ctx, &tools, &line) {
-            let mut out = stdout.lock();
-            if writeln!(out, "{reply}").and_then(|_| out.flush()).is_err() {
-                eprintln!("ltn mcp: stdout closed, stopping");
+        workers.retain(|h| !h.is_finished());
+        if !is_tool_call(&line) {
+            if let Some(reply) = handle_message(&ctx, &tools, &line) {
+                if !write_line(&out, &reply) {
+                    eprintln!("ltn mcp: stdout closed, stopping");
+                    break;
+                }
+            }
+            continue;
+        }
+        // Reserve a slot; refuse rather than queue when all are busy.
+        if in_flight.fetch_add(1, Ordering::SeqCst) >= max_in_flight {
+            in_flight.fetch_sub(1, Ordering::SeqCst);
+            let id = serde_json::from_str::<Value>(&line).ok().and_then(|v| v.get("id").cloned()).unwrap_or(Value::Null);
+            let reply = error_reply(
+                id,
+                SERVER_BUSY,
+                &format!("server busy: {max_in_flight} tool calls are already running; retry when one finishes"),
+            );
+            if !write_line(&out, &reply) {
                 break;
             }
+            continue;
         }
+        let id = serde_json::from_str::<Value>(&line).ok().and_then(|v| v.get("id").cloned()).unwrap_or(Value::Null);
+        let (w_ctx, w_tools, w_out, slot) = (ctx.clone(), tools.clone(), out.clone(), in_flight.clone());
+        let spawned = std::thread::Builder::new().name("ltn-tool".into()).spawn(move || {
+            // handle_message already turns handler panics into isError results.
+            if let Some(reply) = handle_message(&w_ctx, &w_tools, &line) {
+                if !write_line(&w_out, &reply) {
+                    eprintln!("ltn mcp: stdout closed while replying");
+                }
+            }
+            slot.fetch_sub(1, Ordering::SeqCst);
+        });
+        match spawned {
+            Ok(h) => workers.push(h),
+            Err(e) => {
+                in_flight.fetch_sub(1, Ordering::SeqCst);
+                eprintln!("ltn mcp: could not start a worker thread: {e}");
+                if !write_line(&out, &error_reply(id, SERVER_BUSY, &format!("could not start a worker thread: {e}"))) {
+                    break;
+                }
+            }
+        }
+    }
+    for h in workers {
+        let _ = h.join();
     }
 }
 
@@ -287,6 +373,124 @@ mod tests {
         assert_eq!(r["error"]["code"], -32700);
         assert!(r.as_object().unwrap().contains_key("id"));
         assert!(r["id"].is_null());
+    }
+
+    fn sleep_handler(_: &Ctx, args: &Value) -> Result<Value> {
+        let ms = args.get("ms").and_then(Value::as_u64).unwrap_or(2000);
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        Ok(json!({ "slept_ms": ms }))
+    }
+
+    fn concurrent_tools() -> Vec<ToolDef> {
+        let mut t = fake_tools();
+        t.push(ToolDef {
+            name: "sleep_tool",
+            description: "sleeps",
+            input_schema: json!({ "type": "object", "properties": {} }),
+            handler: sleep_handler,
+        });
+        t
+    }
+
+    /// A Write that appends into a shared buffer the test can read afterwards.
+    #[derive(Clone)]
+    struct Buf(Arc<Mutex<Vec<u8>>>);
+    impl Write for Buf {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Run the real serve loop over `input` lines; returns reply lines in write order.
+    fn run_serve(input: &[String], max: usize) -> (Vec<Value>, std::time::Duration) {
+        let buf = Buf(Arc::new(Mutex::new(Vec::new())));
+        let out: SharedWriter = Arc::new(Mutex::new(Box::new(buf.clone())));
+        let reader = std::io::Cursor::new(input.join("
+") + "
+");
+        let start = std::time::Instant::now();
+        serve(ctx(), concurrent_tools(), reader, out, max);
+        let took = start.elapsed();
+        let text = String::from_utf8(buf.0.lock().unwrap().clone()).unwrap();
+        let lines = text
+            .lines()
+            .map(|l| serde_json::from_str::<Value>(l).unwrap_or_else(|e| panic!("not one JSON object per line: {e}: {l}")))
+            .collect();
+        (lines, took)
+    }
+
+    fn call(id: u64, name: &str, args: Value) -> String {
+        json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":args}}).to_string()
+    }
+
+    #[test]
+    fn slow_tool_does_not_block_a_fast_one() {
+        let input = vec![
+            call(1, "sleep_tool", json!({"ms": 2000})),
+            call(2, "ok_tool", json!({"x": 1})),
+            r#"{"jsonrpc":"2.0","id":3,"method":"ping"}"#.to_string(),
+        ];
+        let (lines, took) = run_serve(&input, MAX_IN_FLIGHT);
+        let ids: Vec<u64> = lines.iter().map(|l| l["id"].as_u64().unwrap()).collect();
+        assert_eq!(ids.len(), 3, "{lines:?}");
+        assert_eq!(*ids.last().unwrap(), 1, "the slow call must finish last: {ids:?}");
+        assert!(ids[..2].contains(&2) && ids[..2].contains(&3), "{ids:?}");
+        // serve waits for the slow call before returning.
+        assert!(took >= std::time::Duration::from_millis(1900), "{took:?}");
+        assert_eq!(lines[2]["result"]["isError"], false);
+    }
+
+    #[test]
+    fn slow_calls_run_in_parallel() {
+        let input: Vec<String> = (1..=4).map(|i| call(i, "sleep_tool", json!({"ms": 1500}))).collect();
+        let (lines, took) = run_serve(&input, MAX_IN_FLIGHT);
+        assert_eq!(lines.len(), 4);
+        assert!(took < std::time::Duration::from_millis(4000), "4 x 1.5 s calls took {took:?}; not parallel");
+    }
+
+    #[test]
+    fn concurrent_replies_are_whole_lines_with_matching_ids() {
+        let big = "y".repeat(20_000);
+        let input: Vec<String> = (1..=40).map(|i| call(i, "ok_tool", json!({"i": i, "pad": big}))).collect();
+        // Cap above the request count so every call runs (the cap has its own test).
+        let (lines, _) = run_serve(&input, 64);
+        assert_eq!(lines.len(), 40);
+        let mut ids: Vec<u64> = Vec::new();
+        for l in &lines {
+            let id = l["id"].as_u64().unwrap();
+            // The reply carries the args of its own request, so ids were not mixed up.
+            let text = l["result"]["content"][0]["text"].as_str().unwrap();
+            let v: Value = serde_json::from_str(text).unwrap();
+            assert_eq!(v["echo"]["i"].as_u64().unwrap(), id);
+            ids.push(id);
+        }
+        ids.sort_unstable();
+        assert_eq!(ids, (1..=40).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn calls_over_the_cap_get_a_busy_error_not_a_hang() {
+        let input: Vec<String> = (1..=3).map(|i| call(i, "sleep_tool", json!({"ms": 1000}))).collect();
+        let (lines, _) = run_serve(&input, 2);
+        assert_eq!(lines.len(), 3);
+        let busy: Vec<&Value> = lines.iter().filter(|l| l.get("error").is_some()).collect();
+        assert_eq!(busy.len(), 1, "{lines:?}");
+        assert_eq!(busy[0]["id"], 3);
+        assert_eq!(busy[0]["error"]["code"], -32000);
+        assert!(busy[0]["error"]["message"].as_str().unwrap().contains("busy"));
+    }
+
+    #[test]
+    fn panicking_call_on_a_worker_still_replies() {
+        let input = vec![call(1, "panic_tool", json!({})), call(2, "ok_tool", json!({}))];
+        let (lines, _) = run_serve(&input, MAX_IN_FLIGHT);
+        let p = lines.iter().find(|l| l["id"] == 1).unwrap();
+        assert_eq!(p["result"]["isError"], true);
+        assert!(lines.iter().any(|l| l["id"] == 2 && l["result"]["isError"] == false));
     }
 
     #[test]

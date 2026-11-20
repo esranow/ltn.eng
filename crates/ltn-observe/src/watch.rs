@@ -134,6 +134,50 @@ pub fn is_locked(state: &State, app: &str, now: chrono::DateTime<chrono::Utc>) -
         .map_or(false, |t| t.with_timezone(&chrono::Utc) > now)
 }
 
+/// The same per-app busy lock the engine takes for apply/rollback/destroy
+/// (`State.ext["locks"][app]` = expiry), taken atomically and removed on drop.
+/// Restart/start by the watcher or `ltn_repair` holds it, so they can never act
+/// on a container that an apply is replacing at the same moment.
+#[derive(Debug)]
+pub struct AppLock {
+    home: std::path::PathBuf,
+    app: String,
+}
+
+impl AppLock {
+    pub fn acquire(ctx: &Ctx, app: &str, holder: &str) -> anyhow::Result<Self> {
+        let now = chrono::Utc::now();
+        ctx.store().update(|st| {
+            if is_locked(st, app, now) {
+                anyhow::bail!(
+                    "`{app}` is busy: an apply/rollback/destroy/repair holds its lock until {}. Wait and retry.",
+                    st.ext["locks"][app].as_str().unwrap_or("?")
+                );
+            }
+            let locks = st.ext.entry("locks".to_string()).or_insert_with(|| json!({}));
+            if !locks.is_object() {
+                *locks = json!({});
+            }
+            locks[app] = json!((now + chrono::Duration::minutes(10)).to_rfc3339());
+            Ok(())
+        })?;
+        let _ = holder; // who asked; reserved for audit
+        Ok(Self { home: ctx.home.clone(), app: app.to_string() })
+    }
+}
+
+impl Drop for AppLock {
+    fn drop(&mut self) {
+        let app = self.app.clone();
+        let _ = ltn_state::store::Store::new(&self.home).update(|st| {
+            if let Some(l) = st.ext.get_mut("locks").and_then(Value::as_object_mut) {
+                l.remove(&app);
+            }
+            Ok(())
+        });
+    }
+}
+
 fn memory_of(state: &State, app: &str, release: u32) -> AppMemory {
     let m: Option<AppMemory> = state
         .ext
@@ -223,7 +267,10 @@ pub fn watch_tick(ctx: &Ctx, rollback: RollbackHook) -> Vec<WatchEvent> {
             }
             Decision::Start => {
                 mem.repairs += 1;
-                let res = docker.as_ref().map(|d| d.run_ok(&["start", &container]));
+                let res = match AppLock::acquire(ctx, app, "watcher") {
+                    Ok(_lock) => docker.as_ref().map(|d| d.run_ok(&["start", &container])),
+                    Err(e) => Some(Err(e)),
+                };
                 match res {
                     Some(Ok(_)) => {
                         let detail = json!({ "container": container, "attempt": mem.repairs, "was": format!("{seen:?}") });
@@ -247,7 +294,10 @@ pub fn watch_tick(ctx: &Ctx, rollback: RollbackHook) -> Vec<WatchEvent> {
             Decision::Restart => {
                 mem.repairs += 1;
                 reset_failures = true;
-                let res = docker.as_ref().map(|d| d.run_ok(&["restart", &container]));
+                let res = match AppLock::acquire(ctx, app, "watcher") {
+                    Ok(_lock) => docker.as_ref().map(|d| d.run_ok(&["restart", &container])),
+                    Err(e) => Some(Err(e)),
+                };
                 let probe = obs.probe.as_ref().map(|p| serde_json::to_value(p).unwrap_or(Value::Null));
                 match res {
                     Some(Ok(_)) => {
@@ -319,6 +369,28 @@ pub fn watch_tick(ctx: &Ctx, rollback: RollbackHook) -> Vec<WatchEvent> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn app_lock_is_exclusive_and_released_on_drop() {
+        let home = std::env::temp_dir().join(format!("ltn-observe-lock-{}", uuid::Uuid::new_v4().simple()));
+        let ctx = Ctx::for_home(&home);
+        {
+            let _held = AppLock::acquire(&ctx, "web", "test").unwrap();
+            let err = AppLock::acquire(&ctx, "web", "test").unwrap_err();
+            assert!(err.to_string().contains("busy"), "{err}");
+            // ltn_repair must refuse while an apply (or anyone) holds the lock.
+            let err = crate::repair(&ctx, "web").unwrap_err();
+            assert!(err.to_string().contains("busy"), "{err}");
+            // Other apps are unaffected.
+            let _other = AppLock::acquire(&ctx, "api", "test").unwrap();
+        }
+        let st = ctx.store().load().unwrap();
+        assert!(!is_locked(&st, "web", chrono::Utc::now()));
+        assert!(!is_locked(&st, "api", chrono::Utc::now()));
+        let _again = AppLock::acquire(&ctx, "web", "test").unwrap();
+        drop(_again);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
     use super::*;
 
     fn mem(repairs: u32, rolled: bool) -> AppMemory {

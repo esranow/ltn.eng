@@ -5,6 +5,8 @@ use anyhow::Result;
 use ltn_state::store::Target;
 use ltn_state::{place, Ctx, PlacementRequest, TargetCapacity, ToolDef};
 use serde_json::{json, Value};
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 pub fn tool() -> ToolDef {
     ToolDef {
@@ -22,12 +24,66 @@ fn check(name: &str, ok: bool, detail: impl Into<String>) -> Value {
     json!({ "name": name, "ok": ok, "detail": detail.into() })
 }
 
+/// How long one external check (Docker, provisioner offers, state read) may take.
+pub const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
+/// How long the whole doctor run may take.
+pub const OVERALL_TIMEOUT: Duration = Duration::from_secs(25);
+
 pub fn run(ctx: &Ctx, _args: &Value) -> Result<Value> {
+    run_bounded(ctx, CHECK_TIMEOUT, OVERALL_TIMEOUT)
+}
+
+/// Start `f` on its own thread and hand back a receiver for its result.
+/// A check that overruns is abandoned, not joined: its thread finishes (or
+/// the Docker call hits its own time limit) in the background.
+fn spawn_check<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> mpsc::Receiver<T> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    rx
+}
+
+/// Wait for a check until its own bound or the overall deadline, whichever
+/// comes first. `Err(limit)` means it did not answer in time.
+fn wait<T>(rx: &mpsc::Receiver<T>, started: Instant, per_check: Duration, overall_deadline: Instant) -> Result<T, Duration> {
+    let deadline = (started + per_check).min(overall_deadline);
+    let left = deadline.saturating_duration_since(Instant::now());
+    rx.recv_timeout(left).map_err(|_| deadline.saturating_duration_since(started))
+}
+
+fn secs(d: Duration) -> String {
+    format!("{:.1}", d.as_secs_f64())
+}
+
+/// `run` with explicit bounds, so tests can use short ones.
+pub fn run_bounded(ctx: &Ctx, per_check: Duration, overall: Duration) -> Result<Value> {
+    let started = Instant::now();
+    let overall_deadline = started + overall;
+
+    // Independent external checks, started together.
+    let docker = ctx.docker(&Target::local());
+    let docker_rx = spawn_check(move || docker.info());
+    let pctx = ctx.clone();
+    let offers_rx = spawn_check(move || {
+        let mut offers = 0usize;
+        let mut errors = Vec::new();
+        for p in &pctx.provisioners {
+            match p.offers(&pctx) {
+                Ok(o) => offers += o.len(),
+                Err(e) => errors.push(format!("{}: {e:#}", p.provider())),
+            }
+        }
+        (offers, errors)
+    });
+    let sctx = ctx.clone();
+    let state_rx = spawn_check(move || sctx.store().load().map(|st| (st.all_targets().len(), st.deployments.len())));
+
     let mut checks = Vec::new();
 
     // Docker on the local target, through the configured binary.
-    let docker_ok = match ctx.docker(&Target::local()).info() {
-        Ok(i) => {
+    let docker_ok = match wait(&docker_rx, started, per_check, overall_deadline) {
+        Ok(Ok(i)) => {
             checks.push(check(
                 "docker",
                 true,
@@ -43,11 +99,23 @@ pub fn run(ctx: &Ctx, _args: &Value) -> Result<Value> {
             ));
             true
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             checks.push(check(
                 "docker",
                 false,
                 format!("local Docker daemon not usable via `{}`: {e:#}", ctx.docker_bin),
+            ));
+            false
+        }
+        Err(limit) => {
+            checks.push(check(
+                "docker",
+                false,
+                format!(
+                    "Docker did not answer within {} s via `{}` (`docker info`); the daemon is overloaded or stopped",
+                    secs(limit),
+                    ctx.docker_bin
+                ),
             ));
             false
         }
@@ -103,37 +171,54 @@ pub fn run(ctx: &Ctx, _args: &Value) -> Result<Value> {
         Err(e) => checks.push(check("map_mtl", false, format!("{e}; map_mtl_topology falls back to the built-in probe"))),
     }
 
-    // Provisioners and their offers.
-    let mut offers = 0usize;
-    let mut offer_errors = Vec::new();
-    for p in &ctx.provisioners {
-        match p.offers(ctx) {
-            Ok(o) => offers += o.len(),
-            Err(e) => offer_errors.push(format!("{}: {e:#}", p.provider())),
-        }
-    }
+    // Provisioners and their offers (may call the cloud CLI).
     let providers: Vec<&str> = ctx.provisioners.iter().map(|p| p.provider()).collect();
-    checks.push(check(
-        "provisioners",
-        offer_errors.is_empty(),
-        format!(
-            "{} provisioner(s) [{}], {} offer(s) available{}",
-            providers.len(),
-            providers.join(", "),
-            offers,
-            if offer_errors.is_empty() { String::new() } else { format!("; errors: {}", offer_errors.join("; ")) }
-        ),
-    ));
+    let offers = match wait(&offers_rx, started, per_check, overall_deadline) {
+        Ok((offers, errors)) => {
+            checks.push(check(
+                "provisioners",
+                errors.is_empty(),
+                format!(
+                    "{} provisioner(s) [{}], {} offer(s) available{}",
+                    providers.len(),
+                    providers.join(", "),
+                    offers,
+                    if errors.is_empty() { String::new() } else { format!("; errors: {}", errors.join("; ")) }
+                ),
+            ));
+            offers
+        }
+        Err(limit) => {
+            checks.push(check(
+                "provisioners",
+                false,
+                format!(
+                    "{} provisioner(s) [{}] did not list offers within {} s (cloud CLI slow or hanging)",
+                    providers.len(),
+                    providers.join(", "),
+                    secs(limit)
+                ),
+            ));
+            0
+        }
+    };
 
     // Recorded state.
-    let (targets, deployments) = match ctx.store().load() {
-        Ok(st) => {
-            let (t, d) = (st.all_targets().len(), st.deployments.len());
+    let (targets, deployments) = match wait(&state_rx, started, per_check, overall_deadline) {
+        Ok(Ok((t, d))) => {
             checks.push(check("state", true, format!("{t} target(s), {d} deployment(s) recorded")));
             (Some(t), Some(d))
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             checks.push(check("state", false, format!("could not read state: {e:#}")));
+            (None, None)
+        }
+        Err(limit) => {
+            checks.push(check(
+                "state",
+                false,
+                format!("could not read state within {} s (state file locked by another process?)", secs(limit)),
+            ));
             (None, None)
         }
     };
@@ -147,6 +232,7 @@ pub fn run(ctx: &Ctx, _args: &Value) -> Result<Value> {
         "deployments": deployments,
         "state_dir": ctx.home.display().to_string(),
         "docker_bin": ctx.docker_bin,
+        "elapsed_s": started.elapsed().as_secs_f64(),
     }))
 }
 
@@ -182,6 +268,47 @@ mod tests {
         assert_eq!(out["targets"], 1);
         assert_eq!(out["deployments"], 0);
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// A stand-in `docker` that ignores its arguments and sleeps.
+    fn sleeping_docker(dir: &std::path::Path) -> String {
+        std::fs::create_dir_all(dir).unwrap();
+        #[cfg(windows)]
+        {
+            let p = dir.join("slow-docker.cmd");
+            std::fs::write(&p, "@ping -n 30 127.0.0.1 >nul\r\n").unwrap();
+            p.display().to_string()
+        }
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let p = dir.join("slow-docker");
+            std::fs::write(&p, "#!/bin/sh\nsleep 30\n").unwrap();
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+            p.display().to_string()
+        }
+    }
+
+    #[test]
+    fn stalled_docker_is_reported_within_the_bound() {
+        let home = std::env::temp_dir().join(format!("ltn-doctor-{}", uuid::Uuid::new_v4().simple()));
+        let mut ctx = Ctx::for_home(&home);
+        ctx.docker_bin = sleeping_docker(&home.join("bin"));
+        let start = Instant::now();
+        let out = run_bounded(&ctx, Duration::from_secs(2), Duration::from_secs(4)).unwrap();
+        let took = start.elapsed();
+        assert!(took < Duration::from_secs(5), "doctor took {took:?}");
+        assert_eq!(out["ok"], false);
+        let checks = out["checks"].as_array().unwrap();
+        let docker = checks.iter().find(|c| c["name"] == "docker").unwrap();
+        assert_eq!(docker["ok"], false);
+        let detail = docker["detail"].as_str().unwrap();
+        assert!(detail.contains("did not answer within 2.0 s"), "{detail}");
+        // The rest of the report is still complete and real.
+        let names: Vec<&str> = checks.iter().map(|c| c["name"].as_str().unwrap()).collect();
+        assert_eq!(names, vec!["docker", "z3", "state_dir", "ssh", "opentofu", "map_mtl", "provisioners", "state"]);
+        assert_eq!(checks.iter().find(|c| c["name"] == "z3").unwrap()["ok"], true);
+        assert_eq!(out["targets"], 1);
     }
 
     #[test]
