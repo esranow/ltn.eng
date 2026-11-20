@@ -3,7 +3,9 @@
 
 use anyhow::{anyhow, bail, Result};
 use serde_json::Value;
-use std::process::Command;
+use std::io::Read;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
 pub struct Docker {
@@ -36,20 +38,64 @@ impl Docker {
         }
     }
 
+    /// Runs `docker <args>` with a time limit, so a stalled daemon or SSH
+    /// connection yields an error instead of hanging the MCP server. Builds
+    /// get `LTN_DOCKER_BUILD_TIMEOUT_S` (default 1800 s); everything else
+    /// `LTN_DOCKER_TIMEOUT_S` (default 120 s).
     pub fn run(&self, args: &[&str]) -> Result<CmdResult> {
+        let limit = command_timeout(args.first().copied().unwrap_or(""));
+        self.run_with_timeout(args, limit)
+    }
+
+    pub fn run_with_timeout(&self, args: &[&str], limit: Duration) -> Result<CmdResult> {
         let mut cmd = Command::new(&self.bin);
         if let Some(h) = &self.host {
             cmd.arg("-H").arg(h);
         }
-        let out = cmd
+        let mut child = cmd
             .args(args)
-            .output()
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|e| anyhow!("could not run `{}`: {e}. Is Docker installed?", self.bin))?;
+        // Drain both pipes on threads so a chatty command cannot block on a full pipe.
+        let mut out_pipe = child.stdout.take().expect("piped stdout");
+        let mut err_pipe = child.stderr.take().expect("piped stderr");
+        let out_t = std::thread::spawn(move || {
+            let mut b = Vec::new();
+            let _ = out_pipe.read_to_end(&mut b);
+            b
+        });
+        let err_t = std::thread::spawn(move || {
+            let mut b = Vec::new();
+            let _ = err_pipe.read_to_end(&mut b);
+            b
+        });
+        let start = Instant::now();
+        let status = loop {
+            if let Some(st) = child.try_wait()? {
+                break st;
+            }
+            if start.elapsed() >= limit {
+                let _ = child.kill();
+                let _ = child.wait();
+                let target = self.host.as_deref().unwrap_or("the local Docker daemon");
+                bail!(
+                    "`docker {}` did not finish within {} s on {target}; the daemon or connection is not responding                      (raise LTN_DOCKER_TIMEOUT_S if it is only slow)",
+                    args.iter().take(2).copied().collect::<Vec<_>>().join(" "),
+                    limit.as_secs()
+                );
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        };
+        let stdout = out_t.join().unwrap_or_default();
+        let stderr = err_t.join().unwrap_or_default();
         Ok(CmdResult {
-            ok: out.status.success(),
-            code: out.status.code(),
-            stdout: String::from_utf8_lossy(&out.stdout).trim().to_string(),
-            stderr: String::from_utf8_lossy(&out.stderr).trim().to_string(),
+            ok: status.success(),
+            code: status.code(),
+            stdout: String::from_utf8_lossy(&stdout).trim().to_string(),
+            stderr: String::from_utf8_lossy(&stderr).trim().to_string(),
         })
     }
 
@@ -134,6 +180,17 @@ impl Docker {
     }
 }
 
+/// Time limit for one docker CLI call, from the environment.
+pub fn command_timeout(subcommand: &str) -> Duration {
+    let (var, default) = if subcommand == "build" {
+        ("LTN_DOCKER_BUILD_TIMEOUT_S", 1800)
+    } else {
+        ("LTN_DOCKER_TIMEOUT_S", 120)
+    };
+    let secs = std::env::var(var).ok().and_then(|v| v.parse::<u64>().ok()).filter(|n| *n > 0).unwrap_or(default);
+    Duration::from_secs(secs)
+}
+
 pub fn tail_lines(text: &str, n: usize) -> String {
     let lines: Vec<&str> = text.lines().collect();
     lines[lines.len().saturating_sub(n)..].join("\n")
@@ -167,5 +224,38 @@ impl ContainerState {
             finished_at: s["FinishedAt"].as_str().unwrap_or("").to_string(),
             error: s["Error"].as_str().unwrap_or("").to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    use super::*;
+
+    #[test]
+    fn stalled_command_is_killed_with_a_clear_error() {
+        #[cfg(windows)]
+        let (bin, args) = ("ping", vec!["-n", "8", "127.0.0.1"]);
+        #[cfg(not(windows))]
+        let (bin, args) = ("sleep", vec!["8"]);
+        let start = Instant::now();
+        let err = Docker::new(bin, None).run_with_timeout(&args, Duration::from_secs(1)).unwrap_err();
+        assert!(start.elapsed() < Duration::from_secs(5), "took {:?}", start.elapsed());
+        assert!(err.to_string().contains("did not finish within 1 s"), "{err}");
+    }
+
+    #[test]
+    fn fast_command_returns_output() {
+        #[cfg(windows)]
+        let (bin, args) = ("cmd", vec!["/C", "echo hello"]);
+        #[cfg(not(windows))]
+        let (bin, args) = ("echo", vec!["hello"]);
+        let r = Docker::new(bin, None).run_with_timeout(&args, Duration::from_secs(20)).unwrap();
+        assert!(r.ok);
+        assert_eq!(r.stdout, "hello");
+    }
+
+    #[test]
+    fn build_gets_the_long_limit() {
+        assert!(command_timeout("build") > command_timeout("info"));
     }
 }

@@ -117,6 +117,9 @@ Enforced in code:
 | `LTN_WATCH_INTERVAL_S` | Watcher interval in seconds; default 15 |
 | `LTN_DOCKER_BIN` | Docker CLI to use; default `docker` |
 | `LTN_TOFU_BIN`, `LTN_MAP_MTL_BIN` | Paths to OpenTofu and map-mtl if they are not on `PATH` |
+| `LTN_DOCKER_TIMEOUT_S` | Time limit for one Docker CLI call; default 120. A stalled daemon or SSH link becomes a tool error instead of a hang |
+| `LTN_DOCKER_BUILD_TIMEOUT_S` | Time limit for `docker build`; default 1800 |
+| `LTN_CLOUD_DOCKER_WAIT_S` | How long to wait for Docker on a newly created cloud VM; default 300 |
 
 The watcher checks every deployment on each interval. It restarts or starts a
 container that is down and calls rollback when restarts do not help. Each
@@ -135,11 +138,24 @@ apply or rollback holds that app's lock.
 - The protocol layer and `ltn_doctor` have unit tests in `crates/ltn-mcp`.
   Tests that need Docker are marked `#[ignore]`; run them with
   `cargo test -p <crate> -- --ignored --test-threads=1`.
-- SSH targets use the same Docker CLI path as local ones. They are not covered
-  by the end-to-end script.
+- SSH targets use the same Docker CLI path as local ones. `docker -H ssh://`
+  to a second real daemon (docker:dind with sshd) has been shown to work by
+  hand on Windows OpenSSH. `tests/e2e/remote_e2e.py` covers adding SSH
+  targets, deploying to one, watcher repair, multi-node placement and an
+  unreachable host, but it has not yet passed: its only run failed during
+  setup because Docker Desktop stalled under load. The docker CLI uses the
+  `ssh` on `PATH` with your default SSH config and agent; new hosts need their
+  host key in `known_hosts` (or `StrictHostKeyChecking accept-new`).
 - The AWS path generates OpenTofu and refuses to spend without
   `LTN_ALLOW_CLOUD_SPEND=1`. It has not been run against a live AWS account.
-- `examples/adk_agent.py` has not been run.
+  `tofu validate` of the generated module passes. The price parser's field
+  names were checked against the real public AWS price list; the catalogue
+  itself calls `aws pricing get-products`, which needs credentials.
+  `tests/e2e/cloud_mock_e2e.py` drives the full cloud sequence against a local
+  AWS mock with fake keys; it has not yet passed.
+- `tests/e2e/adk_connect.py` loads `examples/adk_agent.py` with google-adk
+  2.15.0, lets ADK start `ltn mcp`, lists all 18 tools and calls two of them
+  through ADK. No model is involved; an LLM driving the tools has not been run.
 - The older crates (`ltn-architect`, `ltn-agent`, `ltn-providers`, `ltn-ops`,
   `ltn-container`, most of `ltn-core`) and the other `ltn` CLI subcommands
   are earlier demos. They are not part of the MCP surface. The previous MCP

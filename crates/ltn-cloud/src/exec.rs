@@ -25,7 +25,10 @@ impl Out {
 
 /// Runs `bin args...` (optionally in `cwd`). `Err` only when the binary could not be started.
 pub fn run(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<Out> {
-    let mut cmd = Command::new(bin);
+    // Rust only appends `.exe` to a bare program name on Windows, but tools such as the
+    // pip-installed AWS CLI are `aws.cmd`; resolve bare names through PATH + PATHEXT first.
+    let resolved = resolve(bin);
+    let mut cmd = Command::new(&resolved);
     cmd.args(args);
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
@@ -37,6 +40,17 @@ pub fn run(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<Out> {
         stdout: String::from_utf8_lossy(&out.stdout).trim().to_string(),
         stderr: String::from_utf8_lossy(&out.stderr).trim().to_string(),
     })
+}
+
+/// A bare program name (no directory part) is looked up with [`which`] so `.cmd`/`.bat`
+/// launchers are found on Windows; anything else is returned unchanged.
+pub fn resolve(bin: &str) -> String {
+    if cfg!(windows) && !bin.contains(|c: char| matches!(c, '/' | '\\' | ':')) {
+        if let Some(p) = which(bin) {
+            return p.to_string_lossy().into_owned();
+        }
+    }
+    bin.to_string()
 }
 
 /// Finds `name` on PATH (honouring PATHEXT on Windows).

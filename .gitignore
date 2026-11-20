@@ -30,3 +30,4 @@ bin/*.exe
 
 # Local tool downloads (OpenTofu etc.)
 .tools/
+dist/

@@ -45,7 +45,10 @@ impl ProvisionEnv {
             bins: Bins::from_env(),
             allow_spend: std::env::var(SPEND_ENV).map_or(false, |v| v.trim() == "1"),
             user_ssh_config,
-            docker_wait: Duration::from_secs(300),
+            // `LTN_CLOUD_DOCKER_WAIT_S` shortens/lengthens the wait for Docker on a new VM.
+            docker_wait: Duration::from_secs(
+                std::env::var("LTN_CLOUD_DOCKER_WAIT_S").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(300),
+            ),
             docker_poll: Duration::from_secs(10),
             app_ports: hcl::DEFAULT_APP_PORTS.to_vec(),
             root_volume_gb: hcl::DEFAULT_ROOT_VOLUME_GB,

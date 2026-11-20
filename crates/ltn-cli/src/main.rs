@@ -22,7 +22,7 @@ mod tui;
 #[derive(Parser, Debug)]
 #[command(name = "ltn")]
 #[command(author = "LTN Engineering Team")]
-#[command(version = "1.0.0")]
+#[command(version)]
 #[command(about = "LTN.ENG — Master Workload & Infrastructure Manager", long_about = None)]
 struct Cli {
     #[command(subcommand)]

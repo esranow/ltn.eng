@@ -1,11 +1,13 @@
 {
   "mcpServers": {
-    "ltn-eng": {
-      "command": "D:\\ltn-eng-workspace\\target\\debug\\ltn.exe",
-      "args": ["mcp"],
+    "ltn": {
+      "command": "D:/ltn-eng-workspace/target/debug/ltn.exe",
+      "args": [
+        "mcp"
+      ],
       "env": {
-        "GEMINI_API_KEY": "${env:GEMINI_API_KEY}",
-        "AWS_ENDPOINT_URL": "http://localhost:4566"
+        "LTN_WATCH_INTERVAL_S": "15",
+        "LTN_MAX_HOURLY_CENTS": "50"
       }
     }
   }
