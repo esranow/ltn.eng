@@ -1,6 +1,4 @@
-use crate::topology::hardware_inventory::HostHardwareInventory;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -61,158 +59,214 @@ pub struct NvLinkConnection {
     pub is_direct_p2p: bool,
 }
 
+/// Output of `map-mtl scan --json` (schema_version 1). Only the fields the
+/// graph needs are read; unknown fields are ignored.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MapMtlScan {
+    pub schema_version: u32,
+    #[serde(default)]
+    pub hostname: String,
+    pub cpu: ScanCpu,
+    pub memory: ScanMemory,
+    #[serde(default)]
+    pub gpus: Vec<ScanGpu>,
+    #[serde(default)]
+    pub numa_nodes: Vec<ScanNumaNode>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScanCpu {
+    #[serde(default)]
+    pub physical_cores: Option<u32>,
+    pub logical_threads: u32,
+    #[serde(default)]
+    pub sockets: Option<u32>,
+    #[serde(default)]
+    pub socket_topology: Vec<ScanSocket>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScanSocket {
+    pub id: u32,
+    #[serde(default)]
+    pub cpus: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScanMemory {
+    pub total_mb: u64,
+    #[serde(default)]
+    pub available_mb: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScanGpu {
+    #[serde(default)]
+    pub vendor: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub vram_mb: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScanNumaNode {
+    pub id: u32,
+    #[serde(default)]
+    pub cpus: Vec<u32>,
+    #[serde(default)]
+    pub memory_mb: Option<u64>,
+}
+
+/// The only map-mtl output schema this bridge understands.
+pub const SUPPORTED_SCHEMA_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapMtlBridge;
 
 impl MapMtlBridge {
-    /// Discovers host topology using map-mtl binary or falls back to native system inspection
-    pub fn discover_topology() -> MtlHostGraphSchema {
-        // Attempt to call map-mtl if available on PATH or target/debug
-        if let Some(schema) = Self::try_exec_map_mtl() {
-            return schema;
+    /// Runs `map-mtl scan --json` and turns it into a hardware graph.
+    ///
+    /// The binary is `LTN_MAP_MTL_BIN` if set, otherwise `map-mtl` on PATH.
+    /// There is no fallback: if map-mtl is missing, fails, or prints output
+    /// this bridge cannot read, the error says so instead of inventing a
+    /// topology.
+    pub fn discover_topology() -> Result<MtlHostGraphSchema, String> {
+        let bin = std::env::var("LTN_MAP_MTL_BIN")
+            .ok()
+            .filter(|b| !b.trim().is_empty())
+            .unwrap_or_else(|| "map-mtl".to_string());
+        let output = Command::new(&bin).args(["scan", "--json"]).output().map_err(|e| {
+            format!("could not run `{bin} scan --json`: {e}. Install map-mtl or set LTN_MAP_MTL_BIN")
+        })?;
+        if !output.status.success() {
+            return Err(format!(
+                "`{bin} scan --json` exited with {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
-
-        // Native fallback synthesizer using real host sysinfo
-        Self::synthesize_from_host_inventory(&HostHardwareInventory::probe_local_system())
+        let scan = Self::parse_scan(&output.stdout)?;
+        Ok(Self::graph_from_scan(&scan))
     }
 
-    fn try_exec_map_mtl() -> Option<MtlHostGraphSchema> {
-        let candidates = [
-            "map-mtl",
-            "D:\\ltn-eng-workspace\\target\\debug\\map-mtl.exe",
-            "D:\\ltn-eng-workspace\\target\\release\\map-mtl.exe",
-        ];
-
-        for bin in &candidates {
-            if Path::new(bin).exists() || which_exists(bin) {
-                if let Ok(output) = Command::new(bin).arg("scan").arg("--json").output() {
-                    if output.status.success() {
-                        if let Ok(schema) =
-                            serde_json::from_slice::<MtlHostGraphSchema>(&output.stdout)
-                        {
-                            return Some(schema);
-                        }
-                    }
-                }
-            }
+    /// Parses `map-mtl scan --json` output, rejecting other schema versions.
+    pub fn parse_scan(bytes: &[u8]) -> Result<MapMtlScan, String> {
+        let scan: MapMtlScan =
+            serde_json::from_slice(bytes).map_err(|e| format!("unreadable map-mtl scan output: {e}"))?;
+        if scan.schema_version != SUPPORTED_SCHEMA_VERSION {
+            return Err(format!(
+                "map-mtl scan schema_version {} is not supported (expected {SUPPORTED_SCHEMA_VERSION})",
+                scan.schema_version
+            ));
         }
-        None
+        if scan.cpu.logical_threads == 0 {
+            return Err("map-mtl scan reported 0 logical CPUs".to_string());
+        }
+        Ok(scan)
     }
 
-    /// Synthesizes a structured physical graph from HostHardwareInventory
-    pub fn synthesize_from_host_inventory(inv: &HostHardwareInventory) -> MtlHostGraphSchema {
-        let mut nodes = Vec::new();
+    /// Builds the graph from what map-mtl measured. Nothing is added that the
+    /// scan did not report: no assumed caches, sockets or GPU links.
+    pub fn graph_from_scan(scan: &MapMtlScan) -> MtlHostGraphSchema {
+        let mut nodes: Vec<MtlGraphNode> = Vec::new();
         let mut edges = Vec::new();
+        fn push(nodes: &mut Vec<MtlGraphNode>, node_type: MtlNodeType, cap: u64) -> u32 {
+            let id = nodes.len() as u32;
+            nodes.push(MtlGraphNode { id, node_type, available_capacity: cap, allocated_capacity: 0 });
+            id
+        }
 
-        let mut node_counter = 0u32;
-
-        // 1. Sockets
-        for s in 0..inv.cpu.sockets {
-            let socket_id = node_counter;
-            node_counter += 1;
-            nodes.push(MtlGraphNode {
-                id: socket_id,
-                node_type: MtlNodeType::Socket(s),
-                available_capacity: 100,
-                allocated_capacity: 0,
-            });
-
-            // Cores in this socket
-            for c in 0..inv.cpu.physical_cores {
-                let core_id = node_counter;
-                node_counter += 1;
-                nodes.push(MtlGraphNode {
-                    id: core_id,
-                    node_type: MtlNodeType::Core(c),
-                    available_capacity: 100,
-                    allocated_capacity: 0,
-                });
-
-                edges.push((socket_id, core_id, MtlEdgeType::PhysicalProximity(1)));
-
-                // L3 Cache per 4 cores
-                if c % 4 == 0 {
-                    let cache_id = node_counter;
-                    node_counter += 1;
-                    nodes.push(MtlGraphNode {
-                        id: cache_id,
-                        node_type: MtlNodeType::Cache { level: 3 },
-                        available_capacity: 32 * 1024 * 1024,
-                        allocated_capacity: 0,
-                    });
-                    edges.push((core_id, cache_id, MtlEdgeType::SharedCache(3)));
+        // Logical CPUs, one Thread node each, keyed by OS cpu number.
+        let mut thread_ids = std::collections::BTreeMap::new();
+        for cpu in 0..scan.cpu.logical_threads {
+            thread_ids.insert(cpu, push(&mut nodes, MtlNodeType::Thread(cpu), 1));
+        }
+        // Sockets only where the scan reported which CPUs belong to them.
+        for sock in &scan.cpu.socket_topology {
+            let sid = push(&mut nodes, MtlNodeType::Socket(sock.id), sock.cpus.len() as u64);
+            for c in &sock.cpus {
+                if let Some(t) = thread_ids.get(c) {
+                    edges.push((sid, *t, MtlEdgeType::PhysicalProximity(1)));
                 }
             }
         }
-
-        // 2. NUMA domains
-        for numa in &inv.numa {
-            let numa_id = node_counter;
-            node_counter += 1;
-            nodes.push(MtlGraphNode {
-                id: numa_id,
-                node_type: MtlNodeType::NumaDomain(numa.node_id),
-                available_capacity: numa.memory_mb,
-                allocated_capacity: 0,
-            });
-        }
-
-        // 3. GPU Accelerators & NVLink interlinks
-        if inv.gpu.count > 0 {
-            let mut gpu_node_ids = Vec::new();
-            for _g in 0..inv.gpu.count {
-                let gpu_id = node_counter;
-                node_counter += 1;
-                nodes.push(MtlGraphNode {
-                    id: gpu_id,
-                    node_type: MtlNodeType::GpuAccelerator,
-                    available_capacity: inv.gpu.vram_mb_per_device,
-                    allocated_capacity: 0,
-                });
-                gpu_node_ids.push(gpu_id);
-
-                // Connect to PCIe
-                edges.push((0, gpu_id, MtlEdgeType::PciLink(64))); // Gen 4/5 64 GT/s
-            }
-
-            // High-speed NVLink mesh if multi-GPU
-            if gpu_node_ids.len() > 1 {
-                for i in 0..gpu_node_ids.len() {
-                    for j in (i + 1)..gpu_node_ids.len() {
-                        edges.push((
-                            gpu_node_ids[i],
-                            gpu_node_ids[j],
-                            MtlEdgeType::NvLink {
-                                bandwidth_gbps: 900,
-                            },
-                        ));
+        // Memory: per NUMA node when reported, else one bank of total memory.
+        if scan.numa_nodes.is_empty() {
+            push(&mut nodes, MtlNodeType::MemoryBank, scan.memory.total_mb);
+        } else {
+            for n in &scan.numa_nodes {
+                let nid = push(&mut nodes, MtlNodeType::NumaDomain(n.id), n.memory_mb.unwrap_or(0));
+                for c in &n.cpus {
+                    if let Some(t) = thread_ids.get(c) {
+                        edges.push((nid, *t, MtlEdgeType::PhysicalProximity(0)));
                     }
                 }
             }
         }
-
-        MtlHostGraphSchema { nodes, edges }
-    }
-
-    /// Derives the high-speed GPU interconnect matrix
-    pub fn get_nvlink_matrix(inv: &HostHardwareInventory) -> NvLinkMatrix {
-        let mut links = Vec::new();
-        if inv.gpu.count > 1 {
-            for i in 0..inv.gpu.count {
-                for j in (i + 1)..inv.gpu.count {
-                    links.push(NvLinkConnection {
-                        gpu_source: i,
-                        gpu_target: j,
-                        bandwidth_gbps: 900, // 900 GB/s bidirectional NVLink
-                        is_direct_p2p: true,
-                    });
-                }
-            }
+        // GPUs with their reported VRAM (0 when the scan could not read it).
+        for g in &scan.gpus {
+            push(&mut nodes, MtlNodeType::GpuAccelerator, g.vram_mb.unwrap_or(0));
         }
-        NvLinkMatrix { links }
+        MtlHostGraphSchema { nodes, edges }
     }
 }
 
-fn which_exists(binary: &str) -> bool {
-    Command::new(binary).arg("--version").output().is_ok()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WINDOWS: &str = include_str!("../../tests/fixtures/map_mtl/windows_scan.json");
+    const LINUX: &str = include_str!("../../tests/fixtures/map_mtl/linux_scan.json");
+
+    fn count(g: &MtlHostGraphSchema, f: impl Fn(&MtlNodeType) -> bool) -> usize {
+        g.nodes.iter().filter(|n| f(&n.node_type)).count()
+    }
+
+    #[test]
+    fn windows_scan_builds_threads_memory_and_gpus_only() {
+        let scan = MapMtlBridge::parse_scan(WINDOWS.as_bytes()).unwrap();
+        let g = MapMtlBridge::graph_from_scan(&scan);
+        assert_eq!(count(&g, |t| matches!(t, MtlNodeType::Thread(_))), scan.cpu.logical_threads as usize);
+        // The Windows scan has no socket topology: no sockets or caches are invented.
+        assert_eq!(count(&g, |t| matches!(t, MtlNodeType::Socket(_))), 0);
+        assert_eq!(count(&g, |t| matches!(t, MtlNodeType::Cache { .. })), 0);
+        let banks: Vec<_> = g.nodes.iter().filter(|n| n.node_type == MtlNodeType::MemoryBank).collect();
+        assert_eq!(banks.len(), 1);
+        assert_eq!(banks[0].available_capacity, scan.memory.total_mb);
+        assert_eq!(count(&g, |t| *t == MtlNodeType::GpuAccelerator), scan.gpus.len());
+        assert!(!g.edges.iter().any(|e| matches!(e.2, MtlEdgeType::NvLink { .. })));
+    }
+
+    #[test]
+    fn linux_scan_links_threads_to_socket_and_numa() {
+        let scan = MapMtlBridge::parse_scan(LINUX.as_bytes()).unwrap();
+        let g = MapMtlBridge::graph_from_scan(&scan);
+        assert_eq!(count(&g, |t| matches!(t, MtlNodeType::Socket(_))), scan.cpu.socket_topology.len());
+        assert_eq!(count(&g, |t| matches!(t, MtlNodeType::NumaDomain(_))), scan.numa_nodes.len());
+        let expected_edges: usize = scan.cpu.socket_topology.iter().map(|s| s.cpus.len()).sum::<usize>()
+            + scan.numa_nodes.iter().map(|n| n.cpus.len()).sum::<usize>();
+        assert_eq!(g.edges.len(), expected_edges);
+        assert_eq!(count(&g, |t| *t == MtlNodeType::GpuAccelerator), 0);
+    }
+
+    #[test]
+    fn old_or_unknown_schema_is_an_error() {
+        let mut v: serde_json::Value = serde_json::from_str(LINUX).unwrap();
+        v["schema_version"] = serde_json::json!(2);
+        let err = MapMtlBridge::parse_scan(v.to_string().as_bytes()).unwrap_err();
+        assert!(err.contains("schema_version 2"), "{err}");
+        let old = r#"{"nodes":[],"edges":[]}"#;
+        assert!(MapMtlBridge::parse_scan(old.as_bytes()).unwrap_err().contains("unreadable"));
+    }
+
+    #[test]
+    fn missing_binary_is_an_error_not_a_made_up_topology() {
+        // Only this test touches LTN_MAP_MTL_BIN in this crate.
+        std::env::set_var("LTN_MAP_MTL_BIN", "ltn-definitely-missing-map-mtl-binary");
+        let r = MapMtlBridge::discover_topology();
+        std::env::remove_var("LTN_MAP_MTL_BIN");
+        let err = r.unwrap_err();
+        assert!(err.contains("could not run"), "{err}");
+    }
 }

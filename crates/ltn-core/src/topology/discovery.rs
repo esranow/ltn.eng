@@ -38,8 +38,9 @@ impl TopologyDiscoveryAdapter {
         }
     }
 
-    /// Discovers structured hardware topology graph via map.mtl
-    pub fn discover_physical_graph(&self) -> MtlHostGraphSchema {
+    /// Hardware graph from `map-mtl scan --json`; an error if map-mtl is
+    /// unavailable or its output cannot be read.
+    pub fn discover_physical_graph(&self) -> Result<MtlHostGraphSchema, String> {
         MapMtlBridge::discover_topology()
     }
 }

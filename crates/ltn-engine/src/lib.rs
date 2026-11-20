@@ -96,8 +96,9 @@ pub fn tools() -> Vec<ToolDef> {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string", "description": "Lowercase id, e.g. edge-1" },
-                    "docker_host": { "type": "string", "description": "e.g. ssh://deploy@10.0.0.5" },
-                    "address": { "type": "string", "description": "Host or IP used to reach published ports" },
+                    "docker_host": { "type": "string", "description": "e.g. ssh://deploy@10.0.0.5 or ssh://deploy@10.0.0.5:2222" },
+                    "identity_file": { "type": "string", "description": "Path on the ltn server to the private key for this host (a path, never key material). Written to ltn's own ssh config; ~/.ssh is not used or changed." },
+                    "address":{ "type": "string", "description": "Host or IP used to reach published ports" },
                     "cost_cents_per_hour": { "type": "integer", "minimum": 0 },
                     "gpu_count": { "type": "integer", "minimum": 0 },
                     "vram_mb": { "type": "integer", "minimum": 0 },

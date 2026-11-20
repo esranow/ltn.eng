@@ -30,6 +30,3 @@ uuid.workspace = true
 name = "ltn"
 path = "src/main.rs"
 
-[[bin]]
-name = "map-mtl"
-path = "src/standalone_main.rs"

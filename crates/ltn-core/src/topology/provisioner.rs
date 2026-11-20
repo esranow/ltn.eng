@@ -81,8 +81,28 @@ impl MapMtlInfraProvisioner {
         dry_run: bool,
         profile: KernelPerformanceProfile,
     ) -> Result<InfraProvisioningReceipt, String> {
-        let topology = MapMtlBridge::discover_topology();
-        let core_ids: Vec<u32> = (0..topology.nodes.len().min(8) as u32).collect();
+        let topology = MapMtlBridge::discover_topology()?;
+        Self::provision_host_with_topology(storage_root, dry_run, profile, &topology)
+    }
+
+    /// Same as `provision_host`, with a hardware graph the caller already has
+    /// (e.g. from `MapMtlBridge::graph_from_scan`).
+    pub fn provision_host_with_topology(
+        storage_root: &Path,
+        dry_run: bool,
+        profile: KernelPerformanceProfile,
+        topology: &crate::topology::MtlHostGraphSchema,
+    ) -> Result<InfraProvisioningReceipt, String> {
+        // Tune the first (up to) 8 logical CPUs map-mtl reported.
+        let core_ids: Vec<u32> = topology
+            .nodes
+            .iter()
+            .filter_map(|n| match n.node_type {
+                crate::topology::MtlNodeType::Thread(cpu) => Some(cpu),
+                _ => None,
+            })
+            .take(8)
+            .collect();
 
         // 1. Kernel Hardware Tuning
         let tuning_receipt = LiveKernelTuner::tune_hardware(profile, &core_ids, dry_run);
@@ -541,10 +561,15 @@ mod tests {
     #[test]
     fn test_provision_bare_metal_dry_run() {
         let temp_dir = std::env::temp_dir().join("map_mtl_test_dry_run");
-        let receipt = MapMtlInfraProvisioner::provision_host(
+        // Real `map-mtl scan --json` output captured on a Linux host.
+        let scan = MapMtlBridge::parse_scan(include_bytes!("../../tests/fixtures/map_mtl/linux_scan.json"))
+            .expect("fixture parses");
+        let topology = MapMtlBridge::graph_from_scan(&scan);
+        let receipt = MapMtlInfraProvisioner::provision_host_with_topology(
             &temp_dir,
             true,
             KernelPerformanceProfile::Performance,
+            &topology,
         )
         .expect("Dry run host provisioning must succeed");
 
