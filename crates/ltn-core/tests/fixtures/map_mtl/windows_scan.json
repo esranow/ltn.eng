@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-20T03:34:00Z",
+  "hostname": "fixture-host",
+  "os": {
+    "name": "Windows",
+    "version": "11 (26200)",
+    "kernel": "26200"
+  },
+  "cpu": {
+    "brand": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+    "vendor": "GenuineIntel",
+    "physical_cores": 4,
+    "logical_threads": 8,
+    "sockets": null,
+    "socket_topology": [],
+    "features": [
+      "sse4.2",
+      "avx",
+      "avx2",
+      "avx512f",
+      "fma",
+      "aes"
+    ]
+  },
+  "memory": {
+    "total_mb": 16149,
+    "available_mb": 1200
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "NVIDIA",
+      "model": "NVIDIA GeForce MX450",
+      "vram_mb": 2048,
+      "driver": "592.82",
+      "uuid": "GPU-00000000-0000-0000-0000-000000000000",
+      "source": "nvidia-smi"
+    },
+    {
+      "index": null,
+      "vendor": "Intel",
+      "model": "Intel(R) Iris(R) Xe Graphics",
+      "vram_mb": null,
+      "driver": "31.0.101.4502",
+      "uuid": null,
+      "source": "wmi:Win32_VideoController"
+    }
+  ],
+  "numa_nodes": [],
+  "disks": [
+    {
+      "name": "",
+      "mount_point": "C:\\",
+      "file_system": "NTFS",
+      "total_mb": 286725,
+      "available_mb": 38903,
+      "removable": false
+    }
+  ],
+  "network_interfaces": [
+    {
+      "name": "Wi-Fi",
+      "mac": "00:00:00:00:00:00"
+    }
+  ],
+  "notes": [
+    "cpu.sockets, cpu.socket_topology and numa_nodes are only read on Linux (from /sys); not available on windows",
+    "vram_mb is null for GPUs reported only by Win32_VideoController: its AdapterRAM field is capped at 4 GB and is not reliable"
+  ]
+}

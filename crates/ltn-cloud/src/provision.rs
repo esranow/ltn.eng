@@ -27,7 +27,8 @@ pub struct ProvisionEnv {
     pub bins: Bins,
     /// True only when `LTN_ALLOW_CLOUD_SPEND=1`.
     pub allow_spend: bool,
-    /// The user's ssh client config that receives the single `Include` line.
+    /// The user's ssh client config. Not written by provisioning (ltn's ssh
+    /// wrapper uses ltn's own config); kept for `sshcfg::ensure_include` opt-in.
     pub user_ssh_config: PathBuf,
     pub docker_wait: Duration,
     pub docker_poll: Duration,
@@ -254,7 +255,6 @@ pub fn provision_with(ctx: &Ctx, env: &ProvisionEnv, offer_id: &str, name: &str)
         }
         let (instance_id, ip) = parse_outputs(&out.stdout)?;
         sshcfg::upsert_alias(&managed_ssh_config(ctx), &alias, &ip, "ec2-user", &key)?;
-        sshcfg::ensure_include(&env.user_ssh_config, &managed_ssh_config(ctx))?;
         wait_for_docker(ctx, env, &docker_host)?;
         Ok((instance_id, ip))
     })();
@@ -574,8 +574,8 @@ mod tests {
 
         let managed = std::fs::read_to_string(home.join("ssh_config")).unwrap();
         assert!(managed.contains("Host ltn-web") && managed.contains("HostName 198.51.100.20"));
-        let user_cfg = std::fs::read_to_string(&env.user_ssh_config).unwrap();
-        assert_eq!(user_cfg.matches("Include ").count(), 1);
+        // ltn's ssh wrapper reads ltn's own config; the user's is never written.
+        assert!(!env.user_ssh_config.exists(), "the user's ssh config must not be touched");
 
         let recs = infra_records(&ctx.store().load().unwrap());
         assert_eq!(recs.len(), 1);

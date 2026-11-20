@@ -45,8 +45,20 @@ impl Ctx {
         Store::new(&self.home)
     }
 
+    /// Docker client for a target. `ssh://` hosts go through ltn's own ssh
+    /// wrapper (ltn's ssh_config and known_hosts, never the user's).
     pub fn docker(&self, target: &Target) -> Docker {
-        Docker::new(&self.docker_bin, target.docker_host.as_deref())
+        let d = Docker::new(&self.docker_bin, target.docker_host.as_deref());
+        if !d.is_ssh() {
+            return d;
+        }
+        match crate::ssh::ensure_ssh_shim(&self.home) {
+            Ok(dir) => d.with_ssh_shim(dir),
+            Err(e) => {
+                eprintln!("ltn: ssh wrapper unavailable, using plain ssh: {e:#}");
+                d
+            }
+        }
     }
 }
 

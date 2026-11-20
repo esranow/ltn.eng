@@ -8,9 +8,11 @@ a Docker daemon behind sshd, published on 127.0.0.1 only), registers them with
 `ltn_target_add` as `ssh://root@127.0.0.1:<port>` and drives `ltn mcp` over stdio.
 The app's container runs on the remote daemon, not the local one.
 
-Nothing in ~/.ssh is read or written: a throwaway key, ssh config and known_hosts
-live in a temp dir, and a tiny `ssh` shim that adds `-F <that config>` is put first
-on PATH for the ltn process only (the docker CLI runs `ssh` from PATH).
+Nothing in ~/.ssh is read or written. The ltn server gets no SSH help from this
+script: it is given only the throwaway key's path (`identity_file`) and must
+reach the nodes through its own ssh wrapper, ssh_config and known_hosts under
+LTN_HOME. The harness's own direct checks (`docker -H ssh://...` from this
+script) use a separate shim with a separate config, on the harness PATH only.
 
 Needs: Docker running, an OpenSSH client, a built ltn binary (Z3 DLL on PATH).
 Ports used: 18411-18412 (apps), 18422/18424 (sshd), 18449 (must be closed).
@@ -103,15 +105,21 @@ def main():
     cfg = os.path.join(work, "ssh_config")
     ssh = tool("ssh")
 
+    # The ltn server: plain environment, no ssh shim. ltn must bring its own.
     env = dict(os.environ)
-    env["PATH"] = shim + os.pathsep + env.get("PATH", "")
     env.update({"LTN_HOME": home, "LTN_WATCH_INTERVAL_S": "2"})
-    env.pop("LTN_WATCH", None)
-    env.pop("LTN_DOCKER_BIN", None)
-    env.pop("DOCKER_HOST", None)
+    for k in ("LTN_WATCH", "LTN_DOCKER_BIN", "DOCKER_HOST", "LTN_SSH_BIN"):
+        env.pop(k, None)
+    # The harness's own direct checks go through a separate shim.
+    henv = dict(env)
+    henv["PATH"] = shim + os.pathsep + env.get("PATH", "")
 
     def rdocker(node, *a, check=True, timeout=120):
-        return run(["docker", "-H", host_url(node), *a], env=env, timeout=timeout, check=check)
+        return run(["docker", "-H", host_url(node), *a], env=henv, timeout=timeout, check=check)
+
+    def rssh(node, *a, timeout=30):
+        port = NODES[node][1]
+        return run([ssh, "-F", cfg, "-p", str(port), "root@127.0.0.1", *a], env=henv, timeout=timeout, check=False)
 
     print(f"info: exe={exe} app={app} work={work}", flush=True)
     srv = None
@@ -138,15 +146,26 @@ def main():
                 run(["docker", "rm", "-f", "-v", cname], check=False)
                 run(["docker", "run", "-d", "--privileged", "--name", cname, "-e", f"LTN_E2E_PUBKEY={pub}",
                      "-p", f"127.0.0.1:{ssh_port}:22", "-p", f"127.0.0.1:{app_port}:{app_port}", HOST_IMAGE])
+            wait_s = int(os.environ.get("LTN_E2E_NODE_WAIT_S", "300"))
             for node in NODES:
-                deadline, last = time.time() + 90, ""
-                while True:
-                    r = rdocker(node, "info", "--format", "{{.ServerVersion}}", check=False, timeout=60)
-                    if r.returncode == 0 and r.stdout.strip():
-                        break
-                    last = (r.stderr or r.stdout).strip()[-300:]
-                    require(time.time() < deadline, f"{node} daemon not reachable over ssh in 90s: {last}")
-                    time.sleep(2)
+                deadline = time.time() + wait_s
+                # 1) sshd answers, 2) dockerd inside the node answers, 3) docker over ssh works.
+                for label, probe in (
+                    ("sshd", lambda: rssh(node, "true")),
+                    ("dockerd", lambda: rssh(node, "docker", "version", "--format", "{{.Server.Version}}")),
+                    ("docker over ssh", lambda: rdocker(node, "info", "--format", "{{.ServerVersion}}", check=False, timeout=60)),
+                ):
+                    last = ""
+                    while True:
+                        try:
+                            r = probe()
+                            if r.returncode == 0:
+                                break
+                            last = (r.stderr or r.stdout).strip()[-300:]
+                        except subprocess.TimeoutExpired as e:
+                            last = f"timeout: {e}"
+                        require(time.time() < deadline, f"{node}: {label} not ready within {wait_s}s: {last}")
+                        time.sleep(3)
             return f"2 dockerd+sshd nodes up, ssh client {ssh}"
         if not step("setup: two real Docker hosts behind sshd")(s_setup):
             return 1
@@ -161,10 +180,18 @@ def main():
             out = []
             for node, (_c, _sp, _ap, cost, gpus, vram) in NODES.items():
                 t = srv.call_ok("ltn_target_add", {"id": node, "docker_host": host_url(node), "address": "127.0.0.1",
-                                                   "cost_cents_per_hour": cost, "gpu_count": gpus, "vram_mb": vram})
+                                                   "identity_file": key, "cost_cents_per_hour": cost,
+                                                   "gpu_count": gpus, "vram_mb": vram}, timeout=240)
                 require(t.get("reachable") is True, f"{node} not reachable: {t}")
+                require(t.get("docker_host") == f"ssh://{node}", f"{node} docker_host {t.get('docker_host')}")
                 out.append(f"{node} cap={json.dumps(t.get('capacity'))[:120]}")
-            ts = {t["id"]: t for t in srv.call_ok("ltn_targets")["targets"]}
+            ltn_cfg = open(os.path.join(home, "ssh_config"), encoding="utf-8").read()
+            ltn_kh = open(os.path.join(home, "known_hosts"), encoding="utf-8").read()
+            for node, (_c, sp, *_r) in NODES.items():
+                require(f"Host {node}\n" in ltn_cfg and f"Port {sp}" in ltn_cfg, f"ltn ssh_config lacks {node}: {ltn_cfg}")
+                require(f"[127.0.0.1]:{sp}" in ltn_kh, f"ltn known_hosts lacks node port {sp}")
+            out.append("ltn's own ssh_config + known_hosts used")
+            ts = {t["id"]: t for t in srv.call_ok("ltn_targets", timeout=240)["targets"]}
             for node in NODES:
                 require(ts.get(node, {}).get("reachable") is True, f"ltn_targets: {node} not reachable: {ts.get(node)}")
                 require(ts[node].get("provider") == "ssh", f"{node} provider {ts[node].get('provider')}")
@@ -280,6 +307,8 @@ def main():
                 require(t.get("removed") is True, f"{node} not removed: {t}")
             ids = [t["id"] for t in srv.call_ok("ltn_targets")["targets"]]
             require(ids == ["local"], f"targets after removal: {ids}")
+            ltn_cfg = open(os.path.join(home, "ssh_config"), encoding="utf-8").read()
+            require("Host node-" not in ltn_cfg, f"ssh_config still has node blocks: {ltn_cfg}")
             return "app gone from node-a, both targets removed"
         step("ltn_destroy on the remote host, ltn_target_remove")(s_destroy)
     except StepFailed as e:

@@ -45,8 +45,35 @@ pub fn add(ctx: &Ctx, args: &Value) -> Result<Value> {
     if id == "local" {
         bail!("`local` is reserved for the local Docker daemon");
     }
-    let docker_host = arg_str(args, "docker_host")?.trim().to_string();
+    let requested_host = arg_str(args, "docker_host")?.trim().to_string();
     let address = arg_str(args, "address")?.trim().to_string();
+    let identity_file = arg_str_opt(args, "identity_file").map(|s| std::path::PathBuf::from(s.trim()));
+    if let Some(k) = &identity_file {
+        if !k.is_file() {
+            bail!("identity_file `{}` does not exist on the ltn server", k.display());
+        }
+    }
+    let store = ctx.store();
+    if store.load()?.target(&id).is_some() {
+        bail!("target `{id}` already exists; remove it first with ltn_target_remove");
+    }
+    // ssh:// hosts get a Host block in ltn's own ssh config (alias = target id),
+    // so ltn's ssh wrapper reaches them with the right user, port, key and
+    // ltn's known_hosts, without the user's ~/.ssh being read or changed.
+    let ssh_cfg = ltn_state::ssh::config_path(&ctx.home);
+    let docker_host = if requested_host.starts_with("ssh://") {
+        let (user, host_name, port) = ltn_state::ssh::parse_ssh_url(&requested_host)?;
+        ltn_state::ssh::upsert_host(
+            &ssh_cfg,
+            &ltn_state::ssh::HostEntry { alias: id.clone(), host_name, user, port, identity_file: identity_file.clone() },
+        )?;
+        format!("ssh://{id}")
+    } else {
+        if identity_file.is_some() {
+            bail!("identity_file only applies to ssh:// docker hosts");
+        }
+        requested_host.clone()
+    };
     let target = Target {
         id: id.clone(),
         docker_host: Some(docker_host.clone()),
@@ -57,17 +84,21 @@ pub fn add(ctx: &Ctx, args: &Value) -> Result<Value> {
         provider: "ssh".into(),
         labels: BTreeMap::new(),
     };
-    let store = ctx.store();
-    if store.load()?.target(&id).is_some() {
-        bail!("target `{id}` already exists; remove it first with ltn_target_remove");
-    }
-    // Verify the daemon answers before anything is saved.
-    let (info, total) = probe_target(ctx, &target).map_err(|e| {
-        anyhow!(
-            "target `{id}` not added: `docker -H {docker_host} info` failed: {e}. Check that the host is \
-             reachable over SSH with your agent/key (try `ssh` to it) and that the remote user can run docker."
-        )
-    })?;
+    // Verify the daemon answers before anything is saved (time-bounded by
+    // ssh ConnectTimeout and LTN_DOCKER_TIMEOUT_S).
+    let (info, total) = match probe_target(ctx, &target) {
+        Ok(v) => v,
+        Err(e) => {
+            if docker_host != requested_host {
+                let _ = ltn_state::ssh::remove_host(&ssh_cfg, &id);
+            }
+            bail!(
+                "target `{id}` not added: `docker -H {requested_host} info` failed: {e}. Check that the host is \
+                 reachable over SSH (pass identity_file for a key; ltn uses its own known_hosts and accepts a new \
+                 host key on first contact) and that the remote user can run docker."
+            );
+        }
+    };
     store.update(|st| {
         if st.target(&target.id).is_some() {
             bail!("target `{}` already exists", target.id);
@@ -76,10 +107,11 @@ pub fn add(ctx: &Ctx, args: &Value) -> Result<Value> {
         Ok(())
     })?;
     let state = store.load()?;
-    store.audit(None, "target_add", json!({ "id": id, "docker_host": docker_host, "cpus": info.cpus, "memory_mb": info.memory_mb }));
+    store.audit(None, "target_add", json!({ "id": id, "docker_host": docker_host, "requested": requested_host, "cpus": info.cpus, "memory_mb": info.memory_mb }));
     Ok(json!({
         "id": id,
         "provider": "ssh",
+        "docker_host": docker_host,
         "reachable": true,
         "capacity": capacity_json(&state, &target, &info, &total),
     }))
@@ -119,6 +151,9 @@ pub fn remove(ctx: &Ctx, args: &Value) -> Result<Value> {
         st.targets.retain(|t| t.id != id);
         Ok(())
     })?;
+    if target.provider == "ssh" {
+        let _ = ltn_state::ssh::remove_host(&ltn_state::ssh::config_path(&ctx.home), id);
+    }
     store.audit(None, "target_remove", json!({ "id": id, "provider": target.provider, "deprovisioned": deprovisioned }));
     Ok(json!({ "id": id, "removed": true, "deprovisioned": deprovisioned }))
 }

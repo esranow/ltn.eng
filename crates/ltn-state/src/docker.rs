@@ -11,6 +11,8 @@ use std::time::{Duration, Instant};
 pub struct Docker {
     bin: String,
     host: Option<String>,
+    /// Directory with ltn's `ssh` wrapper, put first on PATH for `ssh://` hosts.
+    ssh_shim: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -35,7 +37,29 @@ impl Docker {
         Self {
             bin: bin.to_string(),
             host: host.map(str::to_string),
+            ssh_shim: None,
         }
+    }
+
+    /// Use ltn's `ssh` wrapper (see `crate::ssh`) when the host is `ssh://`.
+    pub fn with_ssh_shim(mut self, dir: std::path::PathBuf) -> Self {
+        self.ssh_shim = Some(dir);
+        self
+    }
+
+    /// True when this client talks to an `ssh://` host.
+    pub fn is_ssh(&self) -> bool {
+        self.host.as_deref().map_or(false, |h| h.starts_with("ssh://"))
+    }
+
+    /// PATH for the docker child: the ssh wrapper first, only for ssh hosts.
+    pub fn child_path(&self) -> Option<std::ffi::OsString> {
+        let shim = self.ssh_shim.as_ref().filter(|_| self.is_ssh())?;
+        let mut parts = vec![shim.clone()];
+        if let Some(p) = std::env::var_os("PATH") {
+            parts.extend(std::env::split_paths(&p));
+        }
+        std::env::join_paths(parts).ok()
     }
 
     /// Runs `docker <args>` with a time limit, so a stalled daemon or SSH
@@ -51,6 +75,9 @@ impl Docker {
         let mut cmd = Command::new(&self.bin);
         if let Some(h) = &self.host {
             cmd.arg("-H").arg(h);
+        }
+        if let Some(path) = self.child_path() {
+            cmd.env("PATH", path);
         }
         let mut child = cmd
             .args(args)
@@ -252,6 +279,17 @@ mod timeout_tests {
         let r = Docker::new(bin, None).run_with_timeout(&args, Duration::from_secs(20)).unwrap();
         assert!(r.ok);
         assert_eq!(r.stdout, "hello");
+    }
+
+    #[test]
+    fn ssh_shim_goes_on_path_only_for_ssh_hosts() {
+        let shim = std::path::PathBuf::from("ltn-shim-dir");
+        let ssh = Docker::new("docker", Some("ssh://node-a")).with_ssh_shim(shim.clone());
+        let first = std::env::split_paths(&ssh.child_path().unwrap()).next().unwrap();
+        assert_eq!(first, shim);
+        assert!(Docker::new("docker", None).with_ssh_shim(shim.clone()).child_path().is_none());
+        assert!(Docker::new("docker", Some("tcp://10.0.0.5:2376")).with_ssh_shim(shim).child_path().is_none());
+        assert!(Docker::new("docker", Some("ssh://node-a")).child_path().is_none());
     }
 
     #[test]

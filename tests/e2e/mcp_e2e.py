@@ -4,6 +4,7 @@
 Usage: python tests/e2e/mcp_e2e.py [path/to/ltn.exe]   (default target/debug/ltn.exe)
 
 Builds nothing itself: build first with `cargo build -p ltn-cli` (Z3 env set).
+Set LTN_E2E_TIMEOUT_SCALE (e.g. 3) on a loaded machine to stretch every wait.
 The Z3 DLL must be on PATH for ltn.exe to start. Uses host ports 18300-18399.
 Prints one PASS/FAIL line per step and exits nonzero on any failure.
 Standard library only.
@@ -25,6 +26,52 @@ import uuid
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 APPS = os.path.join(HERE, "apps")
+
+
+# Multiplier for every wait in this script. On a loaded machine (Docker
+# Desktop starved of memory) replies can take minutes; raise this instead of
+# editing timeouts. A timeout message carries elapsed time and free RAM so a
+# load failure can be told apart from a bug.
+SCALE = float(os.environ.get("LTN_E2E_TIMEOUT_SCALE", "1") or "1")
+
+
+def scaled(seconds):
+    return seconds * SCALE
+
+
+def free_ram_mb():
+    """Free physical memory in MB, or None if it cannot be read."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class MemStatus(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            m = MemStatus()
+            m.dwLength = ctypes.sizeof(MemStatus)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+                return m.ullAvailPhys // (1024 * 1024)
+            return None
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) // 1024
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def load_note(started):
+    ram = free_ram_mb()
+    ram_s = f"{ram} MB" if ram is not None else "unknown"
+    return f"elapsed {time.time() - started:.1f}s, free RAM {ram_s}, timeout scale x{SCALE:g}"
 
 EXPECTED_TOOLS = {
     # ltn-engine
@@ -112,11 +159,13 @@ class McpServer:
             msg["params"] = params
         self.proc.stdin.write(json.dumps(msg) + "\n")
         self.proc.stdin.flush()
-        deadline = time.time() + timeout
+        timeout = scaled(timeout)
+        started = time.time()
+        deadline = started + timeout
         while True:
             left = deadline - time.time()
             if left <= 0:
-                raise StepFailed(f"no reply to {method} within {timeout}s; stderr tail: {self.stderr_tail()}")
+                raise StepFailed(f"no reply to {method} within {timeout:.0f}s ({load_note(started)}); stderr tail: {self.stderr_tail()}")
             try:
                 line = self.lines.get(timeout=left)
             except queue.Empty:
@@ -174,7 +223,11 @@ class McpServer:
 
 
 def docker(*args, check=False, timeout=60):
-    r = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=timeout)
+    started = time.time()
+    try:
+        r = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=scaled(timeout))
+    except subprocess.TimeoutExpired:
+        raise StepFailed(f"docker {' '.join(args)} timed out ({load_note(started)})")
     if check and r.returncode != 0:
         raise StepFailed(f"docker {' '.join(args)} failed: {r.stderr.strip()[:300]}")
     return r
@@ -186,7 +239,9 @@ def http_get(url, timeout=5):
 
 
 def wait_for_page(url, expected, seconds=20):
-    deadline = time.time() + seconds
+    seconds = scaled(seconds)
+    started = time.time()
+    deadline = started + seconds
     last = None
     while time.time() < deadline:
         try:
@@ -197,7 +252,7 @@ def wait_for_page(url, expected, seconds=20):
         except Exception as e:  # noqa: BLE001
             last = f"{type(e).__name__}: {e}"
         time.sleep(0.5)
-    raise StepFailed(f"GET {url} did not return {expected!r} within {seconds}s (last: {last})")
+    raise StepFailed(f"GET {url} did not return {expected!r} within {seconds:.0f}s (last: {last}; {load_note(started)})")
 
 
 def copy_app(src_name, dest_root, app, host_port):
@@ -344,7 +399,7 @@ def main():
             require(container, "cannot tell which container is current")
             killed_at = time.time()
             docker("kill", container, check=True)
-            deadline = killed_at + 30
+            deadline = killed_at + scaled(30)
             healthy = False
             last = None
             while time.time() < deadline:

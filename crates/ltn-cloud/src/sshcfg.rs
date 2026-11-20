@@ -1,16 +1,11 @@
-//! SSH host aliases for cloud targets. Aliases live in a managed file
-//! (`<ltn home>/ssh_config`); the user's ssh config gets exactly one
-//! `Include` line for it so `docker -H ssh://<alias>` resolves.
+//! SSH host aliases for cloud targets. Aliases live in ltn's own ssh config
+//! (`<ltn home>/ssh_config`, see `ltn_state::ssh`), which ltn's ssh wrapper
+//! passes to ssh with `-F`. The user's ssh config is not touched; the
+//! `ensure_include` helper below is kept only for users who want to opt in
+//! to using the aliases from their own shell.
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-
-fn begin_marker(alias: &str) -> String {
-    format!("# >>> ltn {alias}")
-}
-fn end_marker(alias: &str) -> String {
-    format!("# <<< ltn {alias}")
-}
 
 /// OpenSSH-friendly path: forward slashes, quoted.
 pub fn ssh_path(p: &Path) -> String {
@@ -25,33 +20,17 @@ pub fn user_ssh_config() -> Option<PathBuf> {
 }
 
 pub fn alias_block(alias: &str, host: &str, user: &str, identity: &Path) -> String {
-    format!(
-        "{}\nHost {alias}\n    HostName {host}\n    User {user}\n    IdentityFile {}\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n{}\n",
-        begin_marker(alias),
-        ssh_path(identity),
-        end_marker(alias)
-    )
+    entry(alias, host, user, identity).block()
 }
 
-fn strip_block(text: &str, alias: &str) -> String {
-    let (b, e) = (begin_marker(alias), end_marker(alias));
-    let mut out = String::new();
-    let mut inside = false;
-    for line in text.lines() {
-        if line.trim() == b {
-            inside = true;
-            continue;
-        }
-        if inside {
-            if line.trim() == e {
-                inside = false;
-            }
-            continue;
-        }
-        out.push_str(line);
-        out.push('\n');
+fn entry(alias: &str, host: &str, user: &str, identity: &Path) -> ltn_state::ssh::HostEntry {
+    ltn_state::ssh::HostEntry {
+        alias: alias.to_string(),
+        host_name: host.to_string(),
+        user: Some(user.to_string()),
+        port: None,
+        identity_file: Some(identity.to_path_buf()),
     }
-    out
 }
 
 fn write(path: &Path, text: &str) -> Result<()> {
@@ -63,25 +42,12 @@ fn write(path: &Path, text: &str) -> Result<()> {
 
 /// Adds or replaces the alias block in the managed file.
 pub fn upsert_alias(managed: &Path, alias: &str, host: &str, user: &str, identity: &Path) -> Result<()> {
-    let existing = std::fs::read_to_string(managed).unwrap_or_default();
-    let mut text = strip_block(&existing, alias);
-    if text.is_empty() {
-        text.push_str("# Managed by ltn-cloud. Edits inside ltn blocks are overwritten.\n");
-    }
-    if !text.ends_with('\n') {
-        text.push('\n');
-    }
-    text.push_str(&alias_block(alias, host, user, identity));
-    write(managed, &text)
+    ltn_state::ssh::upsert_host(managed, &entry(alias, host, user, identity))
 }
 
 /// Removes the alias block (no-op when absent).
 pub fn remove_alias(managed: &Path, alias: &str) -> Result<()> {
-    match std::fs::read_to_string(managed) {
-        Ok(existing) => write(managed, &strip_block(&existing, alias)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e).with_context(|| format!("reading {}", managed.display())),
-    }
+    ltn_state::ssh::remove_host(managed, alias)
 }
 
 pub fn include_line(managed: &Path) -> String {

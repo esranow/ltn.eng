@@ -3,6 +3,7 @@
 
 pub mod docker;
 pub mod spec;
+pub mod ssh;
 pub mod store;
 pub mod tool;
 
