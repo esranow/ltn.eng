@@ -79,7 +79,7 @@ RAM check (PowerShell):
 - [ ] **T1. Check the machine.** PowerShell: run the RAM check and `docker info --format '{{.NCPU}}'`.
   Expect: free RAM in MB, and `8`. Pass: RAM > 2500 and docker answers within 10 s.
   If it fails: close other heavy programs or start Docker Desktop, wait, retry. If it still fails, do only T2-T5 (no Docker) and report.
-- [ ] **T2. Check out the wip branch.** Git Bash: `cd /d/ltn-eng-workspace && git checkout wip/fundamental-fixes && git log --oneline -1`.
+- [ ] **T2. Check out the wip branch.** Git Bash: `cd /d/ltn-eng-workspace && git checkout wip/fundamental-fixes && git log --oneline -1` (this branch does not contain COMPLETION_PLAN.md; tick boxes in the copy on `sprint/real-deploy-path` after T5).
   Expect: `bd72892 wip: ...`. Pass: that hash is printed.
 - [ ] **T3. Build.** Git Bash (Z3 env): `cargo build -p ltn-cli 2>&1 | tail -3`.
   Expect: `Finished`. Pass: no `error`.
@@ -87,7 +87,7 @@ RAM check (PowerShell):
 - [ ] **T4. Unit tests of the touched crates.** Git Bash (Z3 env): `cargo test -p ltn-state -p ltn-engine -p ltn-cloud -p ltn-core -p ltn-mcp -p ltn-observe -p ltn-cli 2>&1 | grep -E "test result|FAILED|panicked"`.
   Pass: every `test result` line says `0 failed`. If it fails: fix the failing test's cause, not the test's assertion.
 - [ ] **T5. Whole workspace.** Git Bash (Z3 env): `cargo test --workspace 2>&1 | grep -E "test result|FAILED" | awk '{p+=$4; f+=$6} END {print p" passed, "f" failed"}'`.
-  Pass: `0 failed`. Then merge the wip work: `git checkout sprint/real-deploy-path && git merge --ff-only wip/fundamental-fixes`. This is local only; never push.
+  Pass: `0 failed`. Then merge the wip work: `git checkout sprint/real-deploy-path && git merge --no-edit wip/fundamental-fixes`. This is local only; never push.
 - [ ] **T6. ADK check.** Needs a venv with `pip install google-adk mcp` (python 3.12). Git Bash: `cp target/debug/ltn.exe /tmp/ltn-adk.exe; LTN_BIN="$(cygpath -w /tmp/ltn-adk.exe)" LTN_MAP_MTL_BIN='D:\ltn-eng-workspace\bin\map-mtl.exe' <venv>/Scripts/python.exe tests/e2e/adk_connect.py`.
   Expect: last line `ADK CONNECT: PASSED`.
 - [ ] **T7. Docker-gated tests** (needs T1 to pass). Git Bash (Z3 env): `for c in ltn-engine ltn-observe ltn-mcp; do cargo test -p $c -- --ignored --test-threads=1 2>&1 | grep "test result"; done`.
