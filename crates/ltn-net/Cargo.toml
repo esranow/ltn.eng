@@ -1,0 +1,16 @@
+[package]
+name = "ltn-net"
+version = "0.1.0"
+edition = "2021"
+description = "Ingress routing, DNS synchronization, automated TLS/HTTPS certificate generation, and WireGuard mesh routing for ltn.eng"
+
+[dependencies]
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+tracing.workspace = true

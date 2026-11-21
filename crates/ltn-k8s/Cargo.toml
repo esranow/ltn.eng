@@ -1,0 +1,18 @@
+[package]
+name = "ltn-k8s"
+version = "0.1.0"
+edition = "2021"
+description = "Optional Kubernetes actuator crate for deploying, observing, and rolling back workloads on EKS/GKE/AKS"
+
+[dependencies]
+ltn-core.workspace = true
+ltn-state.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+z3.workspace = true

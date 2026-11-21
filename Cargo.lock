@@ -892,6 +892,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ltn-k8s"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "ltn-state",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+ "tracing",
+ "uuid",
+ "z3",
+]
+
+[[package]]
 name = "ltn-mcp"
 version = "0.1.0"
 dependencies = [
@@ -904,6 +921,21 @@ dependencies = [
  "ltn-state",
  "serde",
  "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "ltn-net"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tracing",
  "uuid",
 ]
 
@@ -955,6 +987,22 @@ dependencies = [
  "tokio",
  "tracing",
  "ureq",
+ "uuid",
+]
+
+[[package]]
+name = "ltn-secrets"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "ring",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tracing",
  "uuid",
 ]
 

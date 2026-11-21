@@ -1,0 +1,17 @@
+[package]
+name = "ltn-secrets"
+version = "0.1.0"
+edition = "2021"
+description = "Zero-trust encrypted secret management, secure in-memory tmpfs injection, and vault bridging for ltn.eng"
+
+[dependencies]
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+tracing.workspace = true
+ring = "0.17"
