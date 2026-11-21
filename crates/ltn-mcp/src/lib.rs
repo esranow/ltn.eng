@@ -4,6 +4,7 @@
 //! written to stdout; every diagnostic goes to stderr.
 
 mod doctor;
+mod ops_tools;
 mod server;
 mod topology;
 
@@ -18,9 +19,11 @@ pub fn context_from_env() -> Ctx {
     ctx
 }
 
-/// Tools owned by this crate: `ltn_doctor` and `map_mtl_topology`.
+/// Tools owned by this crate: `ltn_doctor`, `map_mtl_topology`, and autonomous ops tools.
 pub fn tools() -> Vec<ToolDef> {
-    vec![doctor::tool(), topology::tool()]
+    let mut list = vec![doctor::tool(), topology::tool()];
+    list.extend(ops_tools::tools());
+    list
 }
 
 /// Every tool the server exposes.

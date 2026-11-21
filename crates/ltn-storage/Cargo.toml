@@ -1,0 +1,16 @@
+[package]
+name = "ltn-storage"
+version = "0.1.0"
+edition = "2021"
+description = "Automated data persistence, zero-touch backups, and disaster recovery (DR) drills for ltn.eng"
+
+[dependencies]
+ltn-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+tracing.workspace = true

@@ -15,6 +15,8 @@ members = [
     "crates/ltn-secrets",
     "crates/ltn-net",
     "crates/ltn-k8s",
+    "crates/ltn-delivery",
+    "crates/ltn-storage",
 ]
 resolver = "2"
 
@@ -53,6 +55,8 @@ ltn-mcp = { path = "crates/ltn-mcp" }
 ltn-secrets = { path = "crates/ltn-secrets" }
 ltn-net = { path = "crates/ltn-net" }
 ltn-k8s = { path = "crates/ltn-k8s" }
+ltn-delivery = { path = "crates/ltn-delivery" }
+ltn-storage = { path = "crates/ltn-storage" }
 
 [profile.dev]
 debug = 1

@@ -878,6 +878,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ltn-delivery"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ltn-engine"
 version = "0.1.0"
 dependencies = [
@@ -916,9 +930,14 @@ dependencies = [
  "chrono",
  "ltn-cloud",
  "ltn-core",
+ "ltn-delivery",
  "ltn-engine",
+ "ltn-k8s",
+ "ltn-net",
  "ltn-observe",
+ "ltn-secrets",
  "ltn-state",
+ "ltn-storage",
  "serde",
  "serde_json",
  "uuid",
@@ -1016,6 +1035,21 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+ "uuid",
+]
+
+[[package]]
+name = "ltn-storage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "ltn-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tracing",
  "uuid",
 ]
 
